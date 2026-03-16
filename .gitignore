@@ -1,0 +1,30 @@
+# OS generated
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependencies (future)
+node_modules/
+
+# Build output (future)
+dist/
+
+# Generated files
+*.csv
+esfera_graella_*
+
+# Browser-saved HTML assets (not needed for the extension)
+exemple_files/
+exemple-alumnes_files/
+
+# Sensitive
+*.pem
+*.key
+credentials.json
+token.json

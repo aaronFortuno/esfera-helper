@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esfer@ Helper</title>
+  <link rel="stylesheet" href="../styles/sidepanel.css">
+</head>
+<body>
+  <header>
+    <h1>Esfer@ Helper</h1>
+    <div id="status-bar" class="status status-disconnected">
+      Desconnectat d'Esfer@
+    </div>
+  </header>
+
+  <main>
+    <!-- PANTALLA: Esperant connexio -->
+    <section id="screen-waiting" class="screen active">
+      <div class="empty-state">
+        <div class="empty-icon">&#9684;</div>
+        <p>Obre una pantalla d'avaluacio a Esfer@ per comencar.</p>
+        <p class="hint">L'extensio detectara automaticament la pantalla.</p>
+      </div>
+    </section>
+
+    <!-- PANTALLA: Llista d'alumnes detectada -->
+    <section id="screen-student-list" class="screen">
+      <h2>Llista d'alumnes detectada</h2>
+      <div id="student-count" class="info-box"></div>
+      <div id="student-list-preview" class="list-preview"></div>
+      
+      <div class="action-group">
+        <p class="help-text">
+          Per capturar l'estructura d'items, obre el formulari d'un alumne 
+          (fes clic a "Modifica" a qualsevol alumne).
+        </p>
+      </div>
+    </section>
+
+    <!-- PANTALLA: Formulari d'alumne detectat -->
+    <section id="screen-student-form" class="screen">
+      <div id="current-student-info" class="info-box"></div>
+
+      <!-- Pas 1: Capturar estructura -->
+      <div class="action-group">
+        <h2>1. Capturar estructura</h2>
+        <p class="help-text">
+          Captura tots els items i materies del formulari actual.
+        </p>
+        <button id="btn-scrape-structure" class="btn btn-primary btn-block">
+          Captura estructura d'items
+        </button>
+        <div id="structure-result" class="result-box hidden"></div>
+      </div>
+
+      <!-- Pas 1b: Configurar qualificadors per materia -->
+      <div id="options-section" class="action-group hidden">
+        <h2>1b. Qualificadors per materia</h2>
+        <p class="help-text">
+          Per defecte, esfer@ mostra totes les opcions a cada select. 
+          Tria quin joc de qualificadors aplica realment a cada materia.
+          Aixi el CSV nomes tindra les opcions correctes.
+        </p>
+        <div class="options-preset">
+          <button id="btn-preset-all-na" class="btn btn-secondary btn-small" title="Posa NA/AS/AN/AE a totes les materies">
+            Totes: Assoliment (NA/AS/AN/AE)
+          </button>
+          <button id="btn-preset-all-gpfm" class="btn btn-secondary btn-small" title="Posa Gens/Poc/Forca/Molt a totes">
+            Totes: Valoracio (G/P/F/M)
+          </button>
+        </div>
+        <div id="options-mapping" class="options-mapping-list"></div>
+        <button id="btn-save-options" class="btn btn-primary btn-block" style="margin-top:8px">
+          Desa la configuracio
+        </button>
+      </div>
+
+      <!-- Pas 2: Exportar / Generar graella -->
+      <div id="export-section" class="action-group hidden">
+        <h2>2. Generar graella</h2>
+        <p class="help-text">
+          Genera un CSV amb l'estructura capturada, llest per omplir 
+          a Google Sheets.
+        </p>
+        <button id="btn-export-csv" class="btn btn-secondary btn-block">
+          Descarrega CSV buit
+        </button>
+        <button id="btn-export-csv-current" class="btn btn-secondary btn-block">
+          Descarrega CSV amb valors actuals
+        </button>
+      </div>
+
+      <!-- Pas 3: Importar dades -->
+      <div class="action-group">
+        <h2>3. Importar dades</h2>
+        <p class="help-text">
+          Carrega un CSV omplert per introduir les dades automaticament.
+        </p>
+        <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+        <button id="btn-load-csv" class="btn btn-primary btn-block">
+          Carrega CSV amb dades
+        </button>
+        <div id="import-preview" class="hidden">
+          <div id="import-student-info" class="info-box"></div>
+          <div id="import-data-preview" class="list-preview"></div>
+          <button id="btn-fill-form" class="btn btn-success btn-block">
+            Omple el formulari
+          </button>
+          <div id="fill-result" class="result-box hidden"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>v0.1.0 - Fase 1 (Prova de concepte)</span>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
