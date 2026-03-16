@@ -19,7 +19,8 @@ dist/
 *.csv
 esfera_graella_*
 
-# Browser-saved HTML assets (not needed for the extension)
+# Browser-saved HTML assets (contain student data - NEVER commit)
+exemple*.html
 exemple_files/
 exemple-alumnes_files/
 
