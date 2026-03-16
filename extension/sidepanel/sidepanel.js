@@ -2,6 +2,13 @@
  * Esfer@ Helper - Side Panel Logic
  * 
  * Coordina la comunicacio amb el content script i gestiona la UI.
+ * 
+ * Flux principal:
+ * 1. Capturar estructura d'items d'esfer@
+ * 1b. Configurar qualificadors per materia
+ * 2. Generar/descarregar CSV
+ * 3. Importar CSV (persistent entre alumnes)
+ * 4. Omplir formulari (amb opcio "Omple i Seguent")
  */
 
 (function () {
@@ -22,7 +29,7 @@
     },
     'totes': {
       label: 'Totes les opcions',
-      values: null  // null = usa les opcions originals del select
+      values: null
     }
   };
 
@@ -31,10 +38,12 @@
   // =========================================================================
 
   let currentScreen = 'waiting';
-  let capturedStructure = null;  // Estructura d'items capturada
-  let capturedStudents = null;   // Llista d'alumnes capturada
-  let loadedCSVData = null;      // Dades del CSV carregat
-  let optionsMapping = {};       // Mapeig codi_materia -> optionSetKey
+  let lastDetectedScreen = '';
+  let capturedStructure = null;
+  let capturedStudents = null;
+  let loadedCSVData = null;      // Persistent entre alumnes!
+  let optionsMapping = {};
+  let lastStudentId = '';        // Per detectar canvi d'alumne
 
   // =========================================================================
   // DOM REFERENCES
@@ -43,29 +52,31 @@
   const $ = (selector) => document.querySelector(selector);
   const statusBar = $('#status-bar');
 
-  // Screens
   const screenWaiting = $('#screen-waiting');
   const screenStudentList = $('#screen-student-list');
   const screenStudentForm = $('#screen-student-form');
 
-  // Buttons
   const btnScrapeStructure = $('#btn-scrape-structure');
   const btnExportCSV = $('#btn-export-csv');
   const btnExportCSVCurrent = $('#btn-export-csv-current');
   const btnLoadCSV = $('#btn-load-csv');
   const btnFillForm = $('#btn-fill-form');
+  const btnFillAndNext = $('#btn-fill-and-next');
   const csvFileInput = $('#csv-file-input');
   const btnPresetAllNA = $('#btn-preset-all-na');
   const btnPresetAllGPFM = $('#btn-preset-all-gpfm');
   const btnSaveOptions = $('#btn-save-options');
+  const btnCsvClear = $('#btn-csv-clear');
+  const btnCsvReload = $('#btn-csv-reload');
 
-  // Result areas
   const structureResult = $('#structure-result');
   const exportSection = $('#export-section');
   const optionsSection = $('#options-section');
   const optionsMappingDiv = $('#options-mapping');
   const importPreview = $('#import-preview');
   const fillResult = $('#fill-result');
+  const csvLoadedBanner = $('#csv-loaded-banner');
+  const csvLoadedText = $('#csv-loaded-text');
 
   // =========================================================================
   // SCREEN MANAGEMENT
@@ -118,12 +129,23 @@
       const response = await sendToContentScript({ action: 'ping' });
       if (response && response.status === 'ok') {
         setStatus('Connectat a Esfer@', 'connected');
-        handleScreenChange(response.screen);
+
+        // Nomes actualitzem la pantalla si ha canviat
+        if (response.screen !== lastDetectedScreen) {
+          lastDetectedScreen = response.screen;
+          await handleScreenChange(response.screen);
+        } else if (response.screen === 'student-form') {
+          // Comprovem si ha canviat l'alumne
+          await checkStudentChange();
+        }
         return true;
       }
     } catch (e) {
       setStatus("Desconnectat d'Esfer@", 'disconnected');
-      showScreen('waiting');
+      if (currentScreen !== 'waiting') {
+        lastDetectedScreen = '';
+        showScreen('waiting');
+      }
       return false;
     }
   }
@@ -137,22 +159,72 @@
       case 'student-form':
         showScreen('student-form');
         await loadCurrentStudent();
-        const stored = await chrome.storage.local.get([
-          'capturedStructure', 'capturedStudents', 'optionsMapping'
-        ]);
-        if (stored.capturedStructure) {
-          capturedStructure = stored.capturedStructure;
-          showStructureResult(capturedStructure);
-        }
-        if (stored.capturedStudents) {
-          capturedStudents = stored.capturedStudents;
-        }
-        if (stored.optionsMapping) {
-          optionsMapping = stored.optionsMapping;
+        await restoreState();
+        // Si hi ha CSV carregat, auto-match amb el nou alumne
+        if (loadedCSVData) {
+          await autoMatchCurrentStudent();
         }
         break;
       default:
         showScreen('waiting');
+    }
+  }
+
+  /**
+   * Comprova si l'alumne actual ha canviat (navegacio SPA).
+   */
+  async function checkStudentChange() {
+    try {
+      const response = await sendToContentScript({ action: 'detect-current-student' });
+      if (response && response.student) {
+        const newId = response.student.idRalc || response.student.id || '';
+        if (newId && newId !== lastStudentId) {
+          lastStudentId = newId;
+          await loadCurrentStudent();
+          if (loadedCSVData) {
+            await autoMatchCurrentStudent();
+          }
+        }
+      }
+    } catch (e) {
+      // Ignorem
+    }
+  }
+
+  /**
+   * Restaura l'estat persistent (estructura, alumnes, opcions).
+   */
+  async function restoreState() {
+    const stored = await chrome.storage.local.get([
+      'capturedStructure', 'capturedStudents', 'optionsMapping'
+    ]);
+    if (stored.capturedStructure) {
+      capturedStructure = stored.capturedStructure;
+      showStructureResult(capturedStructure);
+    }
+    if (stored.capturedStudents) {
+      capturedStudents = stored.capturedStudents;
+    }
+    if (stored.optionsMapping) {
+      optionsMapping = stored.optionsMapping;
+    }
+
+    // Mostrem banner del CSV si hi ha dades carregades
+    updateCSVBanner();
+  }
+
+  // =========================================================================
+  // CSV BANNER (indicador persistent)
+  // =========================================================================
+
+  function updateCSVBanner() {
+    if (loadedCSVData) {
+      csvLoadedBanner.classList.remove('hidden');
+      csvLoadedText.textContent =
+        'CSV carregat: ' + loadedCSVData.studentNames.length + ' alumnes, ' +
+        loadedCSVData.items.length + ' items';
+    } else {
+      csvLoadedBanner.classList.add('hidden');
     }
   }
 
@@ -198,11 +270,26 @@
       const response = await sendToContentScript({ action: 'detect-current-student' });
       if (response && response.student) {
         const s = response.student;
+        lastStudentId = s.idRalc || s.id || '';
+
+        // Mostrem info de l'alumne amb comptador si tenim la llista
+        let counterHtml = '';
+        if (capturedStudents && capturedStudents.length > 0 && lastStudentId) {
+          const idx = capturedStudents.findIndex(
+            st => (st.idRalc || st.id) === lastStudentId
+          );
+          if (idx >= 0) {
+            counterHtml = '<br><span class="student-counter">Alumne ' +
+              (idx + 1) + ' de ' + capturedStudents.length + '</span>';
+          }
+        }
+
         $('#current-student-info').innerHTML =
           '<strong>Alumne actual</strong>' +
           escapeHtml(s.nom || 'Desconegut') +
           '<br><span style="color:#666;font-size:11px">RALC: ' +
-          escapeHtml(s.idRalc || s.id || '?') + '</span>';
+          escapeHtml(s.idRalc || s.id || '?') + '</span>' +
+          counterHtml;
       }
     } catch (e) {
       $('#current-student-info').innerHTML =
@@ -246,11 +333,10 @@
 
   function showStructureResult(items) {
     const subjects = items.filter((i) => i.type === 'subject');
-    const totalItems = items.length;
 
     structureResult.className = 'result-box success';
     structureResult.innerHTML =
-      '<strong>' + totalItems + ' items capturats</strong>' +
+      '<strong>' + items.length + ' items capturats</strong>' +
       '(' + subjects.length + ' materies amb els seus subitems)<br><br>' +
       subjects.map((s) => {
         const sIdx = items.indexOf(s);
@@ -271,14 +357,12 @@
   }
 
   // =========================================================================
-  // OPTIONS MAPPING (qualificadors per materia)
+  // OPTIONS MAPPING
   // =========================================================================
 
   function buildOptionsMapping(items) {
     const subjects = items.filter((i) => i.type === 'subject');
 
-    // Carreguem mapeig existent o creem un de nou
-    // Per defecte: 'assoliment' per totes les materies
     subjects.forEach((s) => {
       if (!optionsMapping[s.code]) {
         optionsMapping[s.code] = 'assoliment';
@@ -306,7 +390,6 @@
         '</div>';
     }).join('');
 
-    // Event listeners per cada select
     optionsMappingDiv.querySelectorAll('select').forEach((sel) => {
       sel.addEventListener('change', (e) => {
         optionsMapping[e.target.dataset.subject] = e.target.value;
@@ -330,16 +413,11 @@
     }, 1500);
   }
 
-  /**
-   * Retorna les opcions filtrades per un item, segons el mapeig de la seva materia.
-   */
   function getFilteredOptions(item, allItems) {
-    // Trobem a quina materia pertany l'item
     let subjectCode = '';
     if (item.type === 'subject') {
       subjectCode = item.code;
     } else {
-      // Busquem la materia pare (l'ultim subject abans d'aquest item)
       const idx = allItems.indexOf(item);
       for (let i = idx - 1; i >= 0; i--) {
         if (allItems[i].type === 'subject') {
@@ -353,11 +431,9 @@
     const optionSet = OPTION_SETS[setKey];
 
     if (!optionSet || !optionSet.values) {
-      // 'totes' -> retornem les opcions originals
       return item.options.map((o) => o.value);
     }
 
-    // Filtrem: nomes les opcions que estan tant al set com a les originals
     const originalValues = item.options.map((o) => o.value);
     return optionSet.values.filter((v) => originalValues.includes(v));
   }
@@ -400,7 +476,6 @@
 
       const rows = [];
 
-      // Fila 1: Capçalera -> Codi | Nom | Opcions | Alumne1 | Alumne2 | ...
       const header = ['Codi', 'Nom', 'Opcions'];
       if (capturedStudents && capturedStudents.length > 0) {
         capturedStudents.forEach((s) => header.push(s.nom));
@@ -409,7 +484,6 @@
       }
       rows.push(header);
 
-      // Fila 2: IDs (RALC) per matching automatic
       const idRow = ['#ID', '', ''];
       if (capturedStudents && capturedStudents.length > 0) {
         capturedStudents.forEach((s) => idRow.push(s.idRalc || s.id));
@@ -418,9 +492,7 @@
       }
       rows.push(idRow);
 
-      // Files d'items
       capturedStructure.forEach((item) => {
-        // Opcions filtrades segons el mapeig
         const filteredOpts = getFilteredOptions(item, capturedStructure);
 
         const row = [
@@ -451,7 +523,6 @@
         rows.push(row);
       });
 
-      // Convertim a CSV string
       const csvContent = rows.map((row) =>
         row.map((cell) => {
           const str = String(cell);
@@ -462,7 +533,6 @@
         }).join(',')
       ).join('\n');
 
-      // Descarreguem
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -476,7 +546,7 @@
   }
 
   // =========================================================================
-  // CSV IMPORT
+  // CSV IMPORT (persistent)
   // =========================================================================
 
   function triggerCSVLoad() {
@@ -497,110 +567,136 @@
         return;
       }
 
-      // Detectem l'alumne actual
-      let currentStudent = null;
-      try {
-        const response = await sendToContentScript({ action: 'detect-current-student' });
-        currentStudent = response ? response.student : null;
-      } catch (e) {
-        // ignore
-      }
-
-      // Busquem la columna de l'alumne actual
-      let matchedColumn = null;
-      let matchedStudentName = '';
-
-      if (currentStudent) {
-        const currentId = currentStudent.idRalc || currentStudent.id || '';
-
-        // Matching per ID (RALC)
-        if (currentId && loadedCSVData.studentIds.length > 0) {
-          const colIndex = loadedCSVData.studentIds.indexOf(currentId);
-          if (colIndex >= 0) {
-            matchedColumn = colIndex;
-            matchedStudentName = loadedCSVData.studentNames[colIndex] || '';
-          }
-        }
-
-        // Matching per nom (fuzzy) si no hem trobat per ID
-        if (matchedColumn === null && currentStudent.nom) {
-          const normalizedNom = normalizeString(currentStudent.nom);
-          for (let i = 0; i < loadedCSVData.studentNames.length; i++) {
-            if (normalizeString(loadedCSVData.studentNames[i]) === normalizedNom) {
-              matchedColumn = i;
-              matchedStudentName = loadedCSVData.studentNames[i];
-              break;
-            }
-          }
-        }
-      }
-
-      // Si nomes hi ha 1 alumne al CSV, l'agafem directament
-      if (matchedColumn === null && loadedCSVData.studentNames.length === 1) {
-        matchedColumn = 0;
-        matchedStudentName = loadedCSVData.studentNames[0];
-      }
-
-      if (matchedColumn === null) {
-        importPreview.classList.remove('hidden');
-        const infoBox = $('#import-student-info');
-        infoBox.className = 'info-box';
-        infoBox.style.background = '#fff3e0';
-        infoBox.style.borderColor = '#ffcc80';
-        infoBox.innerHTML =
-          '<strong>Alumne no trobat al CSV</strong>' +
-          "L'alumne actual (" +
-          escapeHtml(currentStudent ? currentStudent.nom : '?') +
-          ') no coincideix amb cap columna del CSV.<br>' +
-          'Columnes disponibles: ' +
-          loadedCSVData.studentNames.map((n) => escapeHtml(n)).join(', ');
-        $('#import-data-preview').innerHTML = '';
-        btnFillForm.classList.add('hidden');
-        return;
-      }
-
-      // Mostrem preview de les dades a importar
-      const dataToFill = loadedCSVData.items.map((item) => ({
-        code: item.code,
-        name: item.name,
-        value: item.values[matchedColumn] || ''
-      })).filter((d) => d.value);
-
-      importPreview.classList.remove('hidden');
-      const infoBox = $('#import-student-info');
-      infoBox.style.background = '';
-      infoBox.style.borderColor = '';
-      infoBox.innerHTML =
-        '<strong>Alumne: ' + escapeHtml(matchedStudentName) + '</strong>' +
-        dataToFill.length + ' valors a importar';
-
-      $('#import-data-preview').innerHTML = dataToFill.map((d) =>
-        '<div class="list-item">' +
-        '<span class="code">' + escapeHtml(d.code) + '</span>' +
-        '<span class="name">' + escapeHtml(d.name) + '</span>' +
-        '<span class="value">' + escapeHtml(d.value) + '</span>' +
-        '</div>'
-      ).join('');
-
-      btnFillForm.classList.remove('hidden');
-      btnFillForm.dataset.column = matchedColumn;
-      fillResult.classList.add('hidden');
+      updateCSVBanner();
+      await autoMatchCurrentStudent();
     };
 
     reader.readAsText(file, 'UTF-8');
     csvFileInput.value = '';
   }
 
+  /**
+   * Auto-match: busca l'alumne actual al CSV i mostra el preview.
+   * Es crida automaticament quan es carrega un CSV o quan canviem d'alumne.
+   */
+  async function autoMatchCurrentStudent() {
+    if (!loadedCSVData) return;
+
+    let currentStudent = null;
+    try {
+      const response = await sendToContentScript({ action: 'detect-current-student' });
+      currentStudent = response ? response.student : null;
+    } catch (e) {
+      // ignore
+    }
+
+    let matchedColumn = null;
+    let matchedStudentName = '';
+
+    if (currentStudent) {
+      const currentId = currentStudent.idRalc || currentStudent.id || '';
+
+      // Matching per RALC
+      if (currentId && loadedCSVData.studentIds.length > 0) {
+        const colIndex = loadedCSVData.studentIds.indexOf(currentId);
+        if (colIndex >= 0) {
+          matchedColumn = colIndex;
+          matchedStudentName = loadedCSVData.studentNames[colIndex] || '';
+        }
+      }
+
+      // Matching per nom
+      if (matchedColumn === null && currentStudent.nom) {
+        const normalizedNom = normalizeString(currentStudent.nom);
+        for (let i = 0; i < loadedCSVData.studentNames.length; i++) {
+          if (normalizeString(loadedCSVData.studentNames[i]) === normalizedNom) {
+            matchedColumn = i;
+            matchedStudentName = loadedCSVData.studentNames[i];
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: 1 sol alumne
+    if (matchedColumn === null && loadedCSVData.studentNames.length === 1) {
+      matchedColumn = 0;
+      matchedStudentName = loadedCSVData.studentNames[0];
+    }
+
+    if (matchedColumn === null) {
+      importPreview.classList.remove('hidden');
+      const infoBox = $('#import-student-info');
+      infoBox.className = 'info-box';
+      infoBox.style.background = '#fff3e0';
+      infoBox.style.borderColor = '#ffcc80';
+      infoBox.innerHTML =
+        '<strong>Alumne no trobat al CSV</strong>' +
+        "L'alumne actual (" +
+        escapeHtml(currentStudent ? currentStudent.nom : '?') +
+        ') no coincideix amb cap columna del CSV.<br>' +
+        '<span style="font-size:11px">Columnes: ' +
+        loadedCSVData.studentNames.map((n) => escapeHtml(n)).join(', ') +
+        '</span>';
+      $('#import-data-preview').innerHTML = '';
+      btnFillForm.classList.add('hidden');
+      btnFillAndNext.classList.add('hidden');
+      fillResult.classList.add('hidden');
+      return;
+    }
+
+    // Preview
+    const dataToFill = loadedCSVData.items.map((item) => ({
+      code: item.code,
+      name: item.name,
+      value: item.values[matchedColumn] || ''
+    })).filter((d) => d.value);
+
+    const emptyCount = loadedCSVData.items.length - dataToFill.length;
+
+    importPreview.classList.remove('hidden');
+    const infoBox = $('#import-student-info');
+    infoBox.style.background = '';
+    infoBox.style.borderColor = '';
+    infoBox.innerHTML =
+      '<strong>Alumne: ' + escapeHtml(matchedStudentName) + '</strong>' +
+      dataToFill.length + ' valors a importar' +
+      (emptyCount > 0 ? ' (' + emptyCount + ' buits)' : '');
+
+    $('#import-data-preview').innerHTML = dataToFill.slice(0, 50).map((d) =>
+      '<div class="list-item">' +
+      '<span class="code">' + escapeHtml(d.code) + '</span>' +
+      '<span class="name">' + escapeHtml(d.name) + '</span>' +
+      '<span class="value">' + escapeHtml(d.value) + '</span>' +
+      '</div>'
+    ).join('') + (dataToFill.length > 50
+      ? '<div class="list-item" style="justify-content:center;color:#999">... i ' +
+        (dataToFill.length - 50) + ' mes</div>'
+      : '');
+
+    btnFillForm.classList.remove('hidden');
+    btnFillAndNext.classList.remove('hidden');
+    btnFillForm.dataset.column = matchedColumn;
+    btnFillAndNext.dataset.column = matchedColumn;
+    fillResult.classList.add('hidden');
+  }
+
   // =========================================================================
   // FORM FILLING
   // =========================================================================
 
-  async function fillForm() {
+  async function fillForm(andNext) {
     const colIndex = parseInt(btnFillForm.dataset.column, 10);
     if (isNaN(colIndex) || !loadedCSVData) return;
 
     btnFillForm.disabled = true;
-    btnFillForm.textContent = 'Omplint...';
+    btnFillAndNext.disabled = true;
+    const originalText = andNext ? btnFillAndNext.textContent : btnFillForm.textContent;
+    if (andNext) {
+      btnFillAndNext.textContent = 'Omplint...';
+    } else {
+      btnFillForm.textContent = 'Omplint...';
+    }
     setStatus('Omplint formulari...', 'working');
 
     const data = loadedCSVData.items
@@ -621,16 +717,35 @@
         if (response.errors && response.errors.length > 0) {
           fillResult.className = 'result-box info';
           fillResult.innerHTML =
-            '<strong>' + response.success + ' camps omplerts correctament</strong><br>' +
+            '<strong>' + response.success + ' camps omplerts</strong><br>' +
             response.errors.length + ' errors:<br>' +
-            response.errors.map((e) =>
+            response.errors.slice(0, 5).map((e) =>
               escapeHtml(e.code) + ': ' + escapeHtml(e.error)
-            ).join('<br>');
+            ).join('<br>') +
+            (response.errors.length > 5
+              ? '<br>... i ' + (response.errors.length - 5) + ' mes'
+              : '');
         } else {
           fillResult.className = 'result-box success';
           fillResult.innerHTML =
             '<strong>' + response.success + ' camps omplerts correctament</strong><br>' +
-            'Revisa els valors i prem "Desa" a Esfer@.';
+            (andNext
+              ? 'Navegant al seguent alumne...'
+              : 'Revisa els valors i prem "Desa" a Esfer@.');
+        }
+      }
+
+      // Si "Omple i Seguent", esperem un moment i naveguem
+      if (andNext) {
+        await new Promise(r => setTimeout(r, 800));
+
+        // Primer intentem clicar "Desa" (si existeix i esta visible)
+        // Despres naveguem al seguent
+        try {
+          await sendToContentScript({ action: 'click-next' });
+        } catch (e) {
+          fillResult.className = 'result-box info';
+          fillResult.innerHTML += "<br>No s'ha pogut navegar al seguent. Fes-ho manualment.";
         }
       }
     } catch (e) {
@@ -640,7 +755,9 @@
     }
 
     btnFillForm.disabled = false;
+    btnFillAndNext.disabled = false;
     btnFillForm.textContent = 'Omple el formulari';
+    btnFillAndNext.textContent = 'Omple i Seguent';
     setStatus('Connectat a Esfer@', 'connected');
   }
 
@@ -739,10 +856,22 @@
   btnExportCSVCurrent.addEventListener('click', generateCSV(true));
   btnLoadCSV.addEventListener('click', triggerCSVLoad);
   csvFileInput.addEventListener('change', handleCSVFile);
-  btnFillForm.addEventListener('click', fillForm);
+  btnFillForm.addEventListener('click', () => fillForm(false));
+  btnFillAndNext.addEventListener('click', () => fillForm(true));
   btnPresetAllNA.addEventListener('click', () => applyPresetToAll('assoliment'));
   btnPresetAllGPFM.addEventListener('click', () => applyPresetToAll('valoracio'));
   btnSaveOptions.addEventListener('click', saveOptionsMapping);
+
+  btnCsvClear.addEventListener('click', () => {
+    loadedCSVData = null;
+    updateCSVBanner();
+    importPreview.classList.add('hidden');
+    fillResult.classList.add('hidden');
+  });
+
+  btnCsvReload.addEventListener('click', () => {
+    csvFileInput.click();
+  });
 
   // =========================================================================
   // INITIALIZATION
@@ -752,12 +881,14 @@
   setInterval(checkConnection, 2000);
 
   chrome.tabs.onActivated.addListener(() => {
+    lastDetectedScreen = '';
     setTimeout(checkConnection, 500);
   });
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.action === 'tab-updated') {
-      setTimeout(checkConnection, 1000);
+    if (message.action === 'tab-updated' || message.action === 'content-script-navigation') {
+      lastDetectedScreen = '';
+      setTimeout(checkConnection, 500);
     }
   });
 

@@ -42,6 +42,19 @@
     <section id="screen-student-form" class="screen">
       <div id="current-student-info" class="info-box"></div>
 
+      <!-- Indicador CSV carregat -->
+      <div id="csv-loaded-banner" class="info-box csv-banner hidden">
+        <strong id="csv-loaded-text">CSV carregat</strong>
+        <div style="display:flex; gap:6px; margin-top:6px">
+          <button id="btn-csv-clear" class="btn btn-secondary btn-small" style="flex:1">
+            Descarrega CSV
+          </button>
+          <button id="btn-csv-reload" class="btn btn-secondary btn-small" style="flex:1">
+            Canvia CSV
+          </button>
+        </div>
+      </div>
+
       <!-- Pas 1: Capturar estructura -->
       <div class="action-group">
         <h2>1. Capturar estructura</h2>
@@ -96,6 +109,7 @@
         <h2>3. Importar dades</h2>
         <p class="help-text">
           Carrega un CSV omplert per introduir les dades automaticament.
+          Un cop carregat, el CSV es mantindra entre alumnes.
         </p>
         <input type="file" id="csv-file-input" accept=".csv" class="hidden">
         <button id="btn-load-csv" class="btn btn-primary btn-block">
@@ -104,9 +118,14 @@
         <div id="import-preview" class="hidden">
           <div id="import-student-info" class="info-box"></div>
           <div id="import-data-preview" class="list-preview"></div>
-          <button id="btn-fill-form" class="btn btn-success btn-block">
-            Omple el formulari
-          </button>
+          <div class="fill-buttons">
+            <button id="btn-fill-form" class="btn btn-success btn-block">
+              Omple el formulari
+            </button>
+            <button id="btn-fill-and-next" class="btn btn-primary btn-block" title="Omple i navega al seguent alumne">
+              Omple i Seguent
+            </button>
+          </div>
           <div id="fill-result" class="result-box hidden"></div>
         </div>
       </div>
@@ -114,7 +133,7 @@
   </main>
 
   <footer>
-    <span>v0.1.0 - Fase 1 (Prova de concepte)</span>
+    <span>v0.2.0</span>
   </footer>
 
   <script src="sidepanel.js"></script>

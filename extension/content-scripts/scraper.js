@@ -18,21 +18,18 @@
 
   /**
    * Determina en quina pantalla d'esfer@ estem.
+   * Esfer@ es una SPA amb AngularJS, la URL conté el hash amb la ruta.
    * @returns {'student-list'|'student-form'|'unknown'}
    */
   function detectScreen() {
     const url = window.location.href;
 
     // Pantalla de formulari d'un alumne concret
-    // URL: .../parcialAvaluacioGrupAlumneEntradaDades/{sessioId}/{alumneId}/-1
-    // o    .../finalAvaluacioGrupAlumneEntradaDades/{sessioId}/{alumneId}/-1
     if (url.includes('EntradaDades')) {
       return 'student-form';
     }
 
-    // Pantalla de llista d'alumnes
-    // URL: .../parcialAvaluacioGrupAlumne/#/parcialAvaluacioGrupAlumne/{sessioId}
-    // Comprovem que hi ha la taula d'alumnes
+    // Pantalla de llista d'alumnes - busquem la taula
     const studentTable = document.querySelector(
       'table[data-st-safe-src="vm.students_src"], ' +
       'table[data-st-safe-src="vm.students"]'
@@ -41,7 +38,6 @@
       return 'student-list';
     }
 
-    // Tambe mirem si hi ha ng-repeat d'alumnes
     const studentRows = document.querySelectorAll(
       'tr[data-ng-repeat*="alumne in"]'
     );
@@ -50,6 +46,45 @@
     }
 
     return 'unknown';
+  }
+
+  // =========================================================================
+  // ESPERA DE DOM (robustesa per AngularJS)
+  // =========================================================================
+
+  /**
+   * Espera que un selector existeixi al DOM, amb timeout.
+   * Util perque AngularJS renderitza el DOM de forma asincrona.
+   * @param {string} selector - CSS selector
+   * @param {number} maxWait - Temps maxim d'espera en ms (default 5000)
+   * @returns {Promise<Element|null>}
+   */
+  function waitForElement(selector, maxWait = 5000) {
+    return new Promise((resolve) => {
+      const existing = document.querySelector(selector);
+      if (existing) {
+        resolve(existing);
+        return;
+      }
+
+      const observer = new MutationObserver(() => {
+        const el = document.querySelector(selector);
+        if (el) {
+          observer.disconnect();
+          resolve(el);
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(document.querySelector(selector));
+      }, maxWait);
+    });
   }
 
   // =========================================================================
@@ -89,7 +124,7 @@
           }
         }
 
-        // Si no trobem l'ID al ng-click, intentem via el track by
+        // Fallback: intentem via Angular scope
         if (!idAlumne) {
           try {
             const scope = angular.element(row).scope();
@@ -97,12 +132,12 @@
               idAlumne = String(scope.alumne.idAlumne || '');
             }
           } catch (e) {
-            // Angular no disponible o error d'acces
+            // Angular no disponible
           }
         }
 
         students.push({
-          id: idRalc,        // Usem idRalc com a ID principal (per matching amb breadcrumb)
+          id: idRalc,         // idRalc com a ID principal (matching amb breadcrumb)
           idRalc: idRalc,
           idAlumne: idAlumne, // ID intern d'esfer@ (per URLs)
           nom: nom
@@ -119,15 +154,7 @@
 
   /**
    * Captura l'estructura completa d'items/materies del formulari d'un alumne.
-   * Retorna un array jerarquic: materia -> items fills
-   * 
-   * @returns {Array<{
-   *   code: string,
-   *   name: string,
-   *   type: 'subject',
-   *   options: Array<{value: string, label: string}>,
-   *   children: Array<{code: string, name: string, type: 'item', options: Array}>
-   * }>}
+   * @returns {Array<{code, name, type: 'subject', options, children: Array}>}
    */
   function scrapeFormStructure() {
     const structure = [];
@@ -138,14 +165,13 @@
     );
 
     subjectRows.forEach((subjectRow) => {
-      // La capçalera de materia te fons gris fosc (rgb(191, 189, 189))
+      // Capçalera de materia: fons gris fosc
       const subjectHeader = subjectRow.querySelector(
         'div[style*="rgb(191, 189, 189)"], div[style*="191, 189, 189"]'
       );
 
       if (!subjectHeader) return;
 
-      // Extraiem codi i nom de la materia
       const divs = subjectHeader.querySelectorAll(':scope > div');
       let subjectCode = '';
       let subjectName = '';
@@ -155,7 +181,6 @@
         subjectName = divs[1].textContent.trim();
       }
 
-      // Opcions del select de la materia (nivell pare)
       const subjectOptions = extractSelectOptions(subjectHeader);
 
       const subject = {
@@ -166,13 +191,12 @@
         children: []
       };
 
-      // Items fills: cada un es un div amb ng-repeat="area in scope.childs"
+      // Items fills: fons gris clar
       const childRows = subjectRow.querySelectorAll(
         'div[data-ng-repeat*="area in scope.childs"]'
       );
 
       childRows.forEach((childRow) => {
-        // La fila de l'item te fons gris clar (rgb(224, 224, 224))
         const itemDiv = childRow.querySelector(
           'div[style*="rgb(224, 224, 224)"], div[style*="224, 224, 224"]'
         );
@@ -206,8 +230,6 @@
 
   /**
    * Extreu les opcions disponibles d'un <select> dins d'un contenidor.
-   * @param {Element} container - Element pare on buscar el select
-   * @returns {Array<{value: string, label: string}>}
    */
   function extractSelectOptions(container) {
     const select = container.querySelector('select');
@@ -216,16 +238,11 @@
     const options = [];
     select.querySelectorAll('option').forEach((opt) => {
       const value = opt.value || '';
-      // Els valors d'Angular tenen prefix "string:" 
       const cleanValue = value.replace(/^string:/, '');
       const label = opt.textContent.trim();
 
-      // Ignorem l'opcio buida
       if (cleanValue) {
-        options.push({
-          value: cleanValue,
-          label: label
-        });
+        options.push({ value: cleanValue, label: label });
       }
     });
 
@@ -239,25 +256,19 @@
   /**
    * Detecta quin alumne estem visualitzant al formulari.
    * 
-   * El breadcrumb d'esfer@ te aquest format a l'ultim element:
+   * Breadcrumb format (ultim element):
    * "14180367451 - Annassiri, Ibrahim - NIE Y3603046H"
    *  ^idRalc       ^nom                 ^doc
    * 
-   * La URL conte un ID intern diferent de l'idRalc:
-   * .../EntradaDades/{sessioId}/{idIntern}/-1
-   * 
-   * Per fer matching amb la llista d'alumnes, necessitem l'idRalc.
+   * URL: .../EntradaDades/{sessioId}/{idIntern}/-1
    * 
    * @returns {{id: string, idRalc: string, nom: string, urlId: string} | null}
    */
   function detectCurrentStudent() {
-    // ID intern de la URL (no es l'idRalc, es un ID de la BD)
     const url = window.location.href;
     const urlMatch = url.match(/EntradaDades\/(\d+)\/(\d+)/);
     const urlId = urlMatch ? urlMatch[2] : '';
 
-    // Busquem l'ultim element del breadcrumb que conte les dades de l'alumne
-    // Format: "14180367451 - Annassiri, Ibrahim - NIE Y3603046H"
     let idRalc = '';
     let nom = '';
     let fullBreadcrumbText = '';
@@ -268,28 +279,20 @@
       fullBreadcrumbText = lastBreadcrumb.textContent.trim();
     }
 
-    // Parsegem el text del breadcrumb
-    // Pot ser: "14180367451 - Annassiri, Ibrahim - NIE Y3603046H"
-    // o nomes el codi RALC seguit del nom
     if (fullBreadcrumbText) {
-      // Separem per " - " (guio envoltat d'espais)
       const parts = fullBreadcrumbText.split(' - ');
-      
+
       if (parts.length >= 2) {
-        // La primera part es l'idRalc (numeric)
         const firstPart = parts[0].trim();
         if (/^\d+$/.test(firstPart)) {
           idRalc = firstPart;
-          // La segona part es el nom (Cognom, Nom)
           nom = parts[1].trim();
         } else {
-          // Si la primera part no es numerica, potser el breadcrumb
-          // te un format diferent. Busquem un numero llarg.
+          // Format no esperat, busquem numero llarg
           const numMatch = fullBreadcrumbText.match(/(\d{8,})/);
           if (numMatch) {
             idRalc = numMatch[1];
           }
-          // Busquem el nom despres de l'idRalc
           const afterId = fullBreadcrumbText.substring(
             fullBreadcrumbText.indexOf(idRalc) + idRalc.length
           );
@@ -301,16 +304,14 @@
       }
     }
 
-    // L'ID que farem servir per matching es l'idRalc (coincideix amb la llista d'alumnes)
     const id = idRalc || urlId;
-
     if (!id && !nom) return null;
 
-    return { 
-      id: id,           // idRalc preferit, fallback a urlId
+    return {
+      id: id,
       idRalc: idRalc,
       nom: nom,
-      urlId: urlId      // ID intern de la URL
+      urlId: urlId
     };
   }
 
@@ -327,11 +328,9 @@
     const structure = scrapeFormStructure();
 
     structure.forEach((subject) => {
-      // Valor de la materia (nivell pare)
       const subjectValue = readSelectValueByCode(subject.code, 'subject');
       values.push({ code: subject.code, value: subjectValue });
 
-      // Valors dels fills
       subject.children.forEach((child) => {
         const childValue = readSelectValueByCode(child.code, 'item');
         values.push({ code: child.code, value: childValue });
@@ -341,12 +340,6 @@
     return values;
   }
 
-  /**
-   * Llegeix el valor actual d'un select identificat pel seu codi.
-   * @param {string} code - Codi de l'item (ex: "DM1", "CAT-2")
-   * @param {string} type - 'subject' o 'item'
-   * @returns {string} Valor actual (ex: "AN", "AE") o buit
-   */
   function readSelectValueByCode(code, type) {
     const row = findRowByCode(code, type);
     if (!row) return '';
@@ -364,17 +357,17 @@
 
   /**
    * Omple un conjunt de selects amb els valors proporcionats.
-   * Gestiona correctament AngularJS disparant els events necessaris.
+   * Utilitza un delay petit entre cada select per donar temps a Angular.
    * 
-   * @param {Array<{code: string, value: string}>} data - Parells codi-valor
-   * @returns {{success: number, errors: Array<{code: string, error: string}>}}
+   * @param {Array<{code: string, value: string}>} data
+   * @returns {Promise<{success: number, errors: Array}>}
    */
-  function fillFormValues(data) {
+  async function fillFormValues(data) {
     let success = 0;
     const errors = [];
 
-    data.forEach(({ code, value }) => {
-      if (!value) return; // Ignorem valors buits
+    for (const { code, value } of data) {
+      if (!value) continue;
 
       try {
         const filled = setSelectValue(code, value);
@@ -386,28 +379,41 @@
       } catch (e) {
         errors.push({ code, error: e.message });
       }
-    });
+
+      // Petit delay entre selects per permetre que Angular processi
+      await new Promise(r => setTimeout(r, 20));
+    }
+
+    // Forcem un digest cycle final per assegurar que tot s'ha aplicat
+    try {
+      const anySelect = document.querySelector('select[data-ng-model="el.value"]');
+      if (anySelect) {
+        const rootScope = angular.element(anySelect).scope().$root;
+        if (rootScope && !rootScope.$$phase) {
+          rootScope.$apply();
+        }
+      }
+    } catch (e) {
+      // Ignorem
+    }
 
     return { success, errors };
   }
 
   /**
-   * Estableix el valor d'un select identificat pel codi, 
-   * notificant AngularJS del canvi.
-   * 
+   * Estableix el valor d'un select, notificant AngularJS.
    * @param {string} code - Codi de l'item
-   * @param {string} value - Valor a establir (ex: "AN")
-   * @returns {boolean} true si s'ha pogut establir
+   * @param {string} value - Valor (ex: "AN")
+   * @returns {boolean}
    */
   function setSelectValue(code, value) {
-    // Busquem la fila que conte el codi
     const row = findRowByCode(code, 'any');
     if (!row) return false;
 
     const select = row.querySelector('select');
     if (!select) return false;
 
-    // Comprovem que el valor existeix com a opcio valida
+    // Comprovem que el valor existeix com a opcio
     const angularValue = 'string:' + value;
     const optionExists = Array.from(select.options).some(
       (opt) => opt.value === angularValue
@@ -427,10 +433,10 @@
         return true;
       }
     } catch (e) {
-      // Fallback al metode 2
+      // Fallback
     }
 
-    // Metode 2: Manipulacio directa del DOM + events
+    // Metode 2: DOM directe + events
     select.value = angularValue;
     select.dispatchEvent(new Event('change', { bubbles: true }));
     select.dispatchEvent(new Event('input', { bubbles: true }));
@@ -439,13 +445,9 @@
   }
 
   /**
-   * Troba la fila del DOM que correspon a un codi d'item.
-   * @param {string} code - Codi a buscar (ex: "DM1")
-   * @param {string} type - 'subject', 'item', o 'any'
-   * @returns {Element|null}
+   * Troba la fila del DOM corresponent a un codi d'item.
    */
   function findRowByCode(code, type) {
-    // Busquem per materies (fons gris fosc)
     if (type === 'subject' || type === 'any') {
       const subjectHeaders = document.querySelectorAll(
         'div[style*="rgb(191, 189, 189)"]'
@@ -458,7 +460,6 @@
       }
     }
 
-    // Busquem per items fills (fons gris clar)
     if (type === 'item' || type === 'any') {
       const itemHeaders = document.querySelectorAll(
         'div[style*="rgb(224, 224, 224)"]'
@@ -478,12 +479,6 @@
   // GENERACIO DE DADES PLANES (per CSV / Sheets)
   // =========================================================================
 
-  /**
-   * Genera un array pla amb tots els items (materies + fills) per
-   * facilitar la generacio de CSV o Google Sheets.
-   * 
-   * @returns {Array<{code: string, name: string, type: string, options: Array, level: number}>}
-   */
   function getFlatItemList() {
     const structure = scrapeFormStructure();
     const flat = [];
@@ -509,6 +504,43 @@
     });
 
     return flat;
+  }
+
+  // =========================================================================
+  // NAVEGACIO D'ALUMNES
+  // =========================================================================
+
+  /**
+   * Clica el boto "Seguent" d'esfer@ per anar al proxim alumne.
+   * @returns {boolean} true si s'ha trobat i clicat el boto
+   */
+  function clickNextStudent() {
+    // Busquem el boto "Seguent" o "Siguiente" o icona >>
+    const buttons = document.querySelectorAll('button, a.btn, input[type="button"]');
+    for (const btn of buttons) {
+      const text = btn.textContent.trim().toLowerCase();
+      const title = (btn.getAttribute('title') || '').toLowerCase();
+      const ngClick = btn.getAttribute('data-ng-click') || '';
+
+      if (text.includes('seg') || title.includes('seg') ||
+          ngClick.includes('next') || ngClick.includes('seg') ||
+          ngClick.includes('seguent')) {
+        btn.click();
+        return true;
+      }
+    }
+
+    // Busquem per icona de fletxa
+    const arrows = document.querySelectorAll('.glyphicon-chevron-right, .glyphicon-arrow-right, .fa-arrow-right, .fa-chevron-right');
+    for (const arrow of arrows) {
+      const clickable = arrow.closest('a, button');
+      if (clickable) {
+        clickable.click();
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // =========================================================================
@@ -544,8 +576,14 @@
         break;
 
       case 'fill-values':
-        const result = fillFormValues(message.data || []);
-        sendResponse(result);
+        // fillFormValues es ara async, usem true per indicar resposta asincrona
+        fillFormValues(message.data || []).then((result) => {
+          sendResponse(result);
+        });
+        return true; // Indica resposta asincrona
+
+      case 'click-next':
+        sendResponse({ clicked: clickNextStudent() });
         break;
 
       case 'ping':
@@ -556,8 +594,42 @@
         sendResponse({ error: 'Accio desconeguda: ' + action });
     }
 
-    // Retornem true per indicar que respondrem de manera sincrona
     return true;
+  });
+
+  // =========================================================================
+  // OBSERVADOR DE CANVIS DE RUTA (SPA)
+  // =========================================================================
+
+  // Esfer@ es una SPA amb AngularJS. Quan naveguem entre alumnes la URL canvia
+  // pero la pagina no es recarrega. Observem els canvis per notificar al background.
+  let lastUrl = window.location.href;
+
+  const urlObserver = new MutationObserver(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      chrome.runtime.sendMessage({
+        action: 'content-script-navigation',
+        screen: detectScreen(),
+        url: window.location.href
+      }).catch(() => {});
+    }
+  });
+
+  // Observem canvis al <title> o <body> que indiquin navegacio SPA
+  urlObserver.observe(document.querySelector('title') || document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+
+  // Tambe interceptem hashchange (Esfer@ usa hash routing)
+  window.addEventListener('hashchange', () => {
+    chrome.runtime.sendMessage({
+      action: 'content-script-navigation',
+      screen: detectScreen(),
+      url: window.location.href
+    }).catch(() => {});
   });
 
   // Notifiquem al background que el content script s'ha carregat
@@ -565,10 +637,8 @@
     action: 'content-script-loaded',
     screen: detectScreen(),
     url: window.location.href
-  }).catch(() => {
-    // Ignorem si el background no esta disponible encara
-  });
+  }).catch(() => {});
 
-  console.log('[Esfer@ Helper] Content script carregat. Pantalla detectada:', detectScreen());
+  console.log('[Esfer@ Helper] Content script carregat. Pantalla:', detectScreen());
 
 })();
