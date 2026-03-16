@@ -349,6 +349,24 @@ h2 {
   margin-bottom: 6px;
 }
 
+.sheets-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.sheets-link {
+  color: #1565c0;
+  text-decoration: none;
+  font-size: 11px;
+}
+
+.sheets-link:hover {
+  text-decoration: underline;
+}
+
 /* Export CSV group (secondary options below Sheets button) */
 .export-csv-group {
   margin-top: 8px;

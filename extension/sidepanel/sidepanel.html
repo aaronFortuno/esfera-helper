@@ -105,11 +105,19 @@
         </p>
         <div class="sheets-buttons">
           <button id="btn-export-sheets" class="btn btn-primary" style="flex:1">
-            Obre a Google Sheets
+            Crea full a Google Sheets
           </button>
           <button id="btn-import-sheets" class="btn btn-success hidden" style="flex:1">
             Importa des de Sheets
           </button>
+        </div>
+        <div class="sheets-secondary hidden" id="sheets-secondary">
+          <button id="btn-new-sheet" class="btn btn-secondary btn-small hidden">
+            Crea un full nou
+          </button>
+          <a id="sheets-link" href="#" target="_blank" class="sheets-link hidden">
+            Obre el full al navegador
+          </a>
         </div>
         <div id="sheets-status" class="result-box hidden"></div>
         <div class="export-csv-group">
@@ -136,14 +144,9 @@
         <div id="import-preview" class="hidden">
           <div id="import-student-info" class="info-box"></div>
           <div id="import-data-preview" class="list-preview"></div>
-          <div class="fill-buttons">
-            <button id="btn-fill-form" class="btn btn-success btn-block">
-              Omple el formulari
-            </button>
-            <button id="btn-fill-and-next" class="btn btn-primary btn-block" title="Omple i navega al seguent alumne">
-              Omple i Seguent
-            </button>
-          </div>
+          <button id="btn-fill-form" class="btn btn-success btn-block">
+            Omple el formulari
+          </button>
           <div id="fill-result" class="result-box hidden"></div>
         </div>
       </div>

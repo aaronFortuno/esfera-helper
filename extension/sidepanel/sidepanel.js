@@ -63,7 +63,6 @@
   const btnExportCSVCurrent = $('#btn-export-csv-current');
   const btnLoadCSV = $('#btn-load-csv');
   const btnFillForm = $('#btn-fill-form');
-  const btnFillAndNext = $('#btn-fill-and-next');
   const csvFileInput = $('#csv-file-input');
   const btnPresetAllNA = $('#btn-preset-all-na');
   const btnPresetAllGPFM = $('#btn-preset-all-gpfm');
@@ -73,8 +72,10 @@
   const btnCsvClear = $('#btn-csv-clear');
   const btnCsvReload = $('#btn-csv-reload');
   const btnExportSheets = $('#btn-export-sheets');
+  const btnNewSheet = $('#btn-new-sheet');
   const btnImportSheets = $('#btn-import-sheets');
   const sheetsStatus = $('#sheets-status');
+  const sheetsLink = $('#sheets-link');
   const btnGoogleLogout = $('#btn-google-logout');
 
   const structureResult = $('#structure-result');
@@ -189,6 +190,14 @@
         if (newId && newId !== lastStudentId) {
           lastStudentId = newId;
           await loadCurrentStudent();
+          // Restaurem CSV de storage si no el tenim a memoria
+          if (!loadedCSVData) {
+            const stored = await chrome.storage.local.get(['loadedCSVData']);
+            if (stored.loadedCSVData) {
+              loadedCSVData = stored.loadedCSVData;
+              updateCSVBanner();
+            }
+          }
           if (loadedCSVData) {
             await autoMatchCurrentStudent();
           }
@@ -211,10 +220,6 @@
       'loadedCSVData',
       'lastSpreadsheetId',
     ]);
-    if (stored.capturedStructure) {
-      capturedStructure = stored.capturedStructure;
-      showStructureResult(capturedStructure);
-    }
     if (stored.capturedStudents) {
       capturedStudents = stored.capturedStudents;
     }
@@ -224,12 +229,17 @@
     if (stored.selectedSubjects) {
       selectedSubjects = stored.selectedSubjects;
     }
+    if (stored.capturedStructure) {
+      capturedStructure = stored.capturedStructure;
+      showStructureResult(capturedStructure);
+      buildOptionsMapping(capturedStructure);
+    }
     if (stored.loadedCSVData) {
       loadedCSVData = stored.loadedCSVData;
     }
     if (stored.lastSpreadsheetId) {
       lastSpreadsheetId = stored.lastSpreadsheetId;
-      btnImportSheets.classList.remove('hidden');
+      updateSheetsUI();
     }
 
     // Mostrem banner del CSV si hi ha dades carregades
@@ -695,9 +705,28 @@
   // GOOGLE SHEETS EXPORT
   // =========================================================================
 
-  async function exportToSheets() {
+  /**
+   * Obre el spreadsheet existent o en crea un de nou.
+   * @param {boolean} forceNew - Si true, crea un sheet nou ignorant l'existent.
+   */
+  async function exportToSheets(forceNew) {
     if (!capturedStructure || capturedStructure.length === 0) {
       alert("Primer has de capturar l'estructura d'items.");
+      return;
+    }
+
+    // Si ja tenim un sheet i no forcem creacio nova, simplement l'obrim
+    if (lastSpreadsheetId && !forceNew) {
+      const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
+      chrome.tabs.create({ url: sheetUrl, active: false });
+      sheetsStatus.className = 'result-box info';
+      sheetsStatus.innerHTML =
+        "S'ha obert el full de calcul existent en una nova pestanya." +
+        '<br><a href="' +
+        sheetUrl +
+        '" target="_blank" style="font-size:11px;color:#1565c0">' +
+        'Obre el full</a>';
+      sheetsStatus.classList.remove('hidden');
       return;
     }
 
@@ -707,6 +736,7 @@
     }
 
     btnExportSheets.disabled = true;
+    btnNewSheet.disabled = true;
     btnExportSheets.textContent = 'Connectant amb Google...';
     setStatus('Creant full de calcul...', 'working');
     sheetsStatus.classList.add('hidden');
@@ -728,7 +758,6 @@
           currentStudent = stuResponse.student;
         }
       } catch (e) {
-        // Si no podem llegir valors, continuem amb el sheet buit
         console.warn("[Esfer@ Helper] No s'han pogut llegir valors actuals:", e);
       }
 
@@ -751,16 +780,18 @@
       // Obrim el spreadsheet en una nova pestanya
       chrome.tabs.create({ url: result.spreadsheetUrl, active: false });
 
+      updateSheetsUI();
+
       sheetsStatus.className = 'result-box success';
       sheetsStatus.innerHTML =
         '<strong>Full de calcul creat!</strong>' +
         "S'ha obert en una nova pestanya. Quan hagis omplert les qualificacions, " +
-        'prem "Importa des de Sheets" per recuperar les dades.';
+        'prem "Importa des de Sheets" per recuperar les dades.' +
+        '<br><a href="' +
+        result.spreadsheetUrl +
+        '" target="_blank" style="font-size:11px;color:#1565c0">' +
+        'Obre el full</a>';
       sheetsStatus.classList.remove('hidden');
-
-      // Mostrem el boto d'importar des de Sheets i el de logout
-      btnImportSheets.classList.remove('hidden');
-      btnGoogleLogout.classList.remove('hidden');
 
       setStatus('Connectat a Esfer@', 'connected');
     } catch (e) {
@@ -786,7 +817,32 @@
     }
 
     btnExportSheets.disabled = false;
-    btnExportSheets.textContent = 'Obre a Google Sheets';
+    btnNewSheet.disabled = false;
+    updateSheetsButtonLabel();
+  }
+
+  /**
+   * Actualitza la UI dels botons de Sheets segons si tenim un sheet associat.
+   */
+  function updateSheetsUI() {
+    updateSheetsButtonLabel();
+    if (lastSpreadsheetId) {
+      btnImportSheets.classList.remove('hidden');
+      btnNewSheet.classList.remove('hidden');
+      btnGoogleLogout.classList.remove('hidden');
+      sheetsLink.href = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
+      sheetsLink.classList.remove('hidden');
+    } else {
+      btnImportSheets.classList.add('hidden');
+      btnNewSheet.classList.add('hidden');
+      sheetsLink.classList.add('hidden');
+    }
+  }
+
+  function updateSheetsButtonLabel() {
+    btnExportSheets.textContent = lastSpreadsheetId
+      ? 'Obre el full de calcul'
+      : 'Crea full a Google Sheets';
   }
 
   /**
@@ -829,13 +885,18 @@
       updateCSVBanner();
       await autoMatchCurrentStudent();
 
+      const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
       sheetsStatus.className = 'result-box success';
       sheetsStatus.innerHTML =
         '<strong>Dades importades des de Sheets!</strong>' +
         data.studentNames.length +
         ' alumnes, ' +
         data.items.length +
-        ' items llegits.';
+        ' items llegits.' +
+        '<br><a href="' +
+        sheetUrl +
+        '" target="_blank" style="font-size:11px;color:#1565c0">' +
+        'Obre el full</a>';
       sheetsStatus.classList.remove('hidden');
 
       setStatus('Connectat a Esfer@', 'connected');
@@ -950,7 +1011,6 @@
         '</span>';
       $('#import-data-preview').innerHTML = '';
       btnFillForm.classList.add('hidden');
-      btnFillAndNext.classList.add('hidden');
       fillResult.classList.add('hidden');
       return;
     }
@@ -1014,9 +1074,7 @@
         : '');
 
     btnFillForm.classList.remove('hidden');
-    btnFillAndNext.classList.remove('hidden');
     btnFillForm.dataset.column = matchedColumn;
-    btnFillAndNext.dataset.column = matchedColumn;
     fillResult.classList.add('hidden');
   }
 
@@ -1024,18 +1082,12 @@
   // FORM FILLING
   // =========================================================================
 
-  async function fillForm(andNext) {
+  async function fillForm() {
     const colIndex = parseInt(btnFillForm.dataset.column, 10);
     if (isNaN(colIndex) || !loadedCSVData) return;
 
     btnFillForm.disabled = true;
-    btnFillAndNext.disabled = true;
-    const originalText = andNext ? btnFillAndNext.textContent : btnFillForm.textContent;
-    if (andNext) {
-      btnFillAndNext.textContent = 'Omplint...';
-    } else {
-      btnFillForm.textContent = 'Omplint...';
-    }
+    btnFillForm.textContent = 'Omplint...';
     setStatus('Omplint formulari...', 'working');
 
     // Filtrem per materies seleccionades
@@ -1077,24 +1129,8 @@
           fillResult.innerHTML =
             '<strong>' +
             response.success +
-            ' camps omplerts correctament</strong><br>' +
-            (andNext
-              ? 'Navegant al seguent alumne...'
-              : 'Revisa els valors i prem "Desa" a Esfer@.');
-        }
-      }
-
-      // Si "Omple i Seguent", esperem un moment i naveguem
-      if (andNext) {
-        await new Promise((r) => setTimeout(r, 800));
-
-        // Primer intentem clicar "Desa" (si existeix i esta visible)
-        // Despres naveguem al seguent
-        try {
-          await sendToContentScript({ action: 'click-next' });
-        } catch (e) {
-          fillResult.className = 'result-box info';
-          fillResult.innerHTML += "<br>No s'ha pogut navegar al seguent. Fes-ho manualment.";
+            ' camps omplerts correctament</strong>' +
+            'Revisa els valors i prem "Desa" a Esfer@.';
         }
       }
     } catch (e) {
@@ -1104,9 +1140,7 @@
     }
 
     btnFillForm.disabled = false;
-    btnFillAndNext.disabled = false;
     btnFillForm.textContent = 'Omple el formulari';
-    btnFillAndNext.textContent = 'Omple i Seguent';
     setStatus('Connectat a Esfer@', 'connected');
   }
 
@@ -1259,14 +1293,14 @@
   // =========================================================================
 
   btnScrapeStructure.addEventListener('click', scrapeStructure);
-  btnExportSheets.addEventListener('click', exportToSheets);
+  btnExportSheets.addEventListener('click', () => exportToSheets(false));
+  btnNewSheet.addEventListener('click', () => exportToSheets(true));
   btnImportSheets.addEventListener('click', importFromSheets);
   btnExportCSV.addEventListener('click', generateCSV(false));
   btnExportCSVCurrent.addEventListener('click', generateCSV(true));
   btnLoadCSV.addEventListener('click', triggerCSVLoad);
   csvFileInput.addEventListener('change', handleCSVFile);
-  btnFillForm.addEventListener('click', () => fillForm(false));
-  btnFillAndNext.addEventListener('click', () => fillForm(true));
+  btnFillForm.addEventListener('click', fillForm);
   btnPresetAllNA.addEventListener('click', () => applyPresetToAll('assoliment'));
   btnPresetAllGPFM.addEventListener('click', () => applyPresetToAll('valoracio'));
   btnSelectAll.addEventListener('click', () => setAllSubjectsSelected(true));
@@ -1289,9 +1323,18 @@
   btnGoogleLogout.addEventListener('click', async (e) => {
     e.preventDefault();
     await SheetsAPI.revokeToken();
+    lastSpreadsheetId = null;
+    await chrome.storage.local.remove([
+      'lastSpreadsheetId',
+      'sheetsAccessToken',
+      'sheetsTokenExpiry',
+    ]);
     btnGoogleLogout.classList.add('hidden');
     btnImportSheets.classList.add('hidden');
+    btnNewSheet.classList.add('hidden');
+    sheetsLink.classList.add('hidden');
     sheetsStatus.classList.add('hidden');
+    updateSheetsButtonLabel();
   });
 
   // Esborrat total de dades (RGPD - Dret de supressio)
@@ -1336,6 +1379,9 @@
       sheetsStatus.classList.add('hidden');
       btnGoogleLogout.classList.add('hidden');
       btnImportSheets.classList.add('hidden');
+      btnNewSheet.classList.add('hidden');
+      sheetsLink.classList.add('hidden');
+      updateSheetsButtonLabel();
 
       alert('Totes les dades han estat esborrades.');
     });
