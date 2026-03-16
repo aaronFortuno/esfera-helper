@@ -69,18 +69,26 @@
 
       <!-- Pas 1b: Configurar qualificadors per materia -->
       <div id="options-section" class="action-group hidden">
-        <h2>1b. Qualificadors per materia</h2>
+        <h2>1b. Materies i qualificadors</h2>
         <p class="help-text">
-          Per defecte, esfer@ mostra totes les opcions a cada select. 
-          Tria quin joc de qualificadors aplica realment a cada materia.
-          Aixi el CSV nomes tindra les opcions correctes.
+          Marca les materies que vols incloure a l'exportacio. 
+          Les materies desmarcades no s'exportaran ni s'ompliran, 
+          evitant sobreescriure feina d'altres professors (especialitats, etc.).
         </p>
         <div class="options-preset">
+          <button id="btn-select-all" class="btn btn-secondary btn-small" title="Selecciona totes les materies">
+            Selecciona totes
+          </button>
+          <button id="btn-select-none" class="btn btn-secondary btn-small" title="Desmarca totes les materies">
+            Desmarca totes
+          </button>
+        </div>
+        <div class="options-preset">
           <button id="btn-preset-all-na" class="btn btn-secondary btn-small" title="Posa NA/AS/AN/AE a totes les materies">
-            Totes: Assoliment (NA/AS/AN/AE)
+            Qualificadors: Assoliment
           </button>
           <button id="btn-preset-all-gpfm" class="btn btn-secondary btn-small" title="Posa Gens/Poc/Forca/Molt a totes">
-            Totes: Valoracio (G/P/F/M)
+            Qualificadors: Valoracio
           </button>
         </div>
         <div id="options-mapping" class="options-mapping-list"></div>
@@ -93,15 +101,25 @@
       <div id="export-section" class="action-group hidden">
         <h2>2. Generar graella</h2>
         <p class="help-text">
-          Genera un CSV amb l'estructura capturada, llest per omplir 
-          a Google Sheets.
+          Obre la graella directament a Google Sheets o descarrega-la com a CSV.
         </p>
-        <button id="btn-export-csv" class="btn btn-secondary btn-block">
-          Descarrega CSV buit
-        </button>
-        <button id="btn-export-csv-current" class="btn btn-secondary btn-block">
-          Descarrega CSV amb valors actuals
-        </button>
+        <div class="sheets-buttons">
+          <button id="btn-export-sheets" class="btn btn-primary" style="flex:1">
+            Obre a Google Sheets
+          </button>
+          <button id="btn-import-sheets" class="btn btn-success hidden" style="flex:1">
+            Importa des de Sheets
+          </button>
+        </div>
+        <div id="sheets-status" class="result-box hidden"></div>
+        <div class="export-csv-group">
+          <button id="btn-export-csv" class="btn btn-secondary btn-block">
+            Descarrega CSV buit
+          </button>
+          <button id="btn-export-csv-current" class="btn btn-secondary btn-block">
+            Descarrega CSV amb valors actuals
+          </button>
+        </div>
       </div>
 
       <!-- Pas 3: Importar dades -->
@@ -133,13 +151,15 @@
   </main>
 
   <footer>
-    <span>v0.3.0</span>
+    <span>v0.4.0</span>
     <span class="footer-separator">|</span>
+    <a href="#" id="btn-google-logout" class="footer-link hidden" title="Tanca la sessio de Google">Tanca sessio Google</a>
     <a href="#" id="btn-clear-all-data" class="footer-link" title="Esborra totes les dades emmagatzemades">Esborra dades</a>
     <span class="footer-separator">|</span>
     <a href="https://aaronfortuno.github.io/esfera-helper/privacy-policy.html" target="_blank" class="footer-link">Privacitat</a>
   </footer>
 
+  <script src="sheets-api.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

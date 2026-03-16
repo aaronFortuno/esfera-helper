@@ -1,7 +1,7 @@
 {
   "name": "esfera-helper",
-  "version": "0.3.0",
-  "description": "Agilitza la introducció de qualificacions a Esfer@ capturant l'estructura i important dades des de Google Sheets.",
+  "version": "0.4.0",
+  "description": "Agilitza la introduccio de qualificacions a Esfer@ amb exportacio/importacio CSV i Google Sheets per a docents de Catalunya.",
   "private": true,
   "scripts": {
     "lint": "eslint extension/ tests/",
@@ -11,6 +11,7 @@
     "test": "node --test tests/unit.test.js"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.0.3",
     "prettier": "^3.8.1"
   }

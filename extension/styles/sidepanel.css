@@ -302,6 +302,20 @@ h2 {
   border-bottom: none;
 }
 
+.options-mapping-item.excluded {
+  opacity: 0.45;
+  background: #f9f9f9;
+}
+
+.options-mapping-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #2e8b57;
+}
+
 .options-mapping-item .subject-code {
   font-family: monospace;
   font-size: 11px;
@@ -326,6 +340,20 @@ h2 {
   border-radius: 4px;
   background: white;
   min-width: 100px;
+}
+
+/* Sheets buttons group */
+.sheets-buttons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* Export CSV group (secondary options below Sheets button) */
+.export-csv-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
 }
 
 /* CSV loaded banner */

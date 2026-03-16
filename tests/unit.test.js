@@ -1,6 +1,6 @@
 /**
  * Esfer@ Helper - Unit Tests
- * 
+ *
  * Tests per les funcions pures del projecte.
  * Executar amb: node --test tests/unit.test.js
  */
@@ -98,7 +98,7 @@ function parseCSV(csvText) {
       code: code,
       name: (row[1] || '').trim(),
       options: (row[2] || '').split('|').filter((o) => o.trim()),
-      values: values
+      values: values,
     });
   }
 
@@ -123,18 +123,18 @@ function escapeHtml(text) {
  * OPTION_SETS (de sidepanel.js)
  */
 const OPTION_SETS = {
-  'assoliment': {
+  assoliment: {
     label: 'Assoliment (NA/AS/AN/AE)',
-    values: ['NA', 'AS', 'AN', 'AE']
+    values: ['NA', 'AS', 'AN', 'AE'],
   },
-  'valoracio': {
+  valoracio: {
     label: 'Valoracio (G/P/F/M)',
-    values: ['G', 'P', 'F', 'M']
+    values: ['G', 'P', 'F', 'M'],
   },
-  'totes': {
+  totes: {
     label: 'Totes les opcions',
-    values: null
-  }
+    values: null,
+  },
 };
 
 /**
@@ -165,7 +165,82 @@ function getFilteredOptions(item, allItems, optionsMapping) {
   return optionSet.values.filter((v) => originalValues.includes(v));
 }
 
+/**
+ * Construeix la matriu 2D de dades per al spreadsheet (de sheets-api.js)
+ */
+function buildSheetData(params) {
+  const { items, students, getFilteredOptions: filterFn, currentValues, currentStudent } = params;
 
+  const rows = [];
+
+  // Fila 1: Capcalera (noms)
+  const header = ['Codi', 'Nom', 'Opcions'];
+  if (students && students.length > 0) {
+    students.forEach((s) => header.push(s.nom));
+  } else if (currentStudent) {
+    header.push(currentStudent.nom || 'Alumne');
+  }
+  rows.push(header);
+
+  // Fila 2: IDs (RALC)
+  const idRow = ['#ID', '', ''];
+  if (students && students.length > 0) {
+    students.forEach((s) => idRow.push(s.idRalc || s.id));
+  } else if (currentStudent) {
+    idRow.push(currentStudent.idRalc || currentStudent.id || '');
+  }
+  rows.push(idRow);
+
+  // Files de dades
+  items.forEach((item) => {
+    const filteredOpts = filterFn(item, items);
+    const row = [item.code, item.name, filteredOpts.join('|')];
+
+    if (students && students.length > 0) {
+      students.forEach((s) => {
+        const studentId = s.idRalc || s.id;
+        const currentId = currentStudent ? currentStudent.idRalc || currentStudent.id : '';
+        if (currentValues && currentId && studentId === currentId && currentValues[item.code]) {
+          row.push(currentValues[item.code]);
+        } else {
+          row.push('');
+        }
+      });
+    } else if (currentValues && currentValues[item.code]) {
+      row.push(currentValues[item.code]);
+    } else {
+      row.push('');
+    }
+
+    rows.push(row);
+  });
+
+  return rows;
+}
+
+/**
+ * Filtra items per materies seleccionades (de sidepanel.js)
+ */
+function getSelectedItems(capturedStructure, selectedSubjects) {
+  if (!capturedStructure) return [];
+
+  const result = [];
+  let currentSubjectSelected = false;
+
+  capturedStructure.forEach((item) => {
+    if (item.type === 'subject') {
+      currentSubjectSelected = selectedSubjects[item.code] !== false;
+    }
+    if (currentSubjectSelected) {
+      result.push(item);
+    }
+  });
+
+  return result;
+}
+
+// =========================================================================
+// TESTS
 // =========================================================================
 // TESTS
 // =========================================================================
@@ -190,10 +265,7 @@ describe('normalizeString', () => {
   });
 
   it('normalitza noms catalans tipics', () => {
-    assert.equal(
-      normalizeString('Annassiri, Ibrahim'),
-      normalizeString('annassiri, ibrahim')
-    );
+    assert.equal(normalizeString('Annassiri, Ibrahim'), normalizeString('annassiri, ibrahim'));
     assert.equal(
       normalizeString('García López, María José'),
       normalizeString('garcia lopez, maria jose')
@@ -201,7 +273,7 @@ describe('normalizeString', () => {
   });
 
   it('gestiona caracters especials', () => {
-    assert.equal(normalizeString('L\'Hospitalet'), "l'hospitalet");
+    assert.equal(normalizeString("L'Hospitalet"), "l'hospitalet");
   });
 });
 
@@ -246,7 +318,7 @@ describe('parseCSV', () => {
     'Codi,Nom,Opcions,Alumne1,Alumne2',
     '#ID,,,RALC001,RALC002',
     'MAT,Matematiques,NA|AS|AN|AE,AN,AE',
-    'CAT,Catala,NA|AS|AN|AE,AS,'
+    'CAT,Catala,NA|AS|AN|AE,AS,',
   ].join('\n');
 
   it('parseja un CSV valid correctament', () => {
@@ -286,7 +358,7 @@ describe('parseCSV', () => {
     assert.equal(parseCSV('Codi,Nom\n#ID,'), null);
   });
 
-  it('retorna null per CSV sense columnes d\'alumnes', () => {
+  it("retorna null per CSV sense columnes d'alumnes", () => {
     const csv = 'Codi,Nom,Opcions\n#ID,,\nMAT,Mat,NA|AS';
     assert.equal(parseCSV(csv), null);
   });
@@ -302,7 +374,7 @@ describe('parseCSV', () => {
       'Codi,Nom,Opcions,Alumne1',
       '#ID,,,RALC001',
       '# Comentari ignorat',
-      'MAT,Matematiques,NA|AS|AN|AE,AN'
+      'MAT,Matematiques,NA|AS|AN|AE,AN',
     ].join('\n');
     const result = parseCSV(csv);
     assert.equal(result.items.length, 1);
@@ -319,7 +391,7 @@ describe('parseCSV', () => {
     const csv = [
       'Codi,Nom,Opcions,Alumne1,Alumne2,Alumne3',
       '#ID,,,R1,R2,R3',
-      'MAT,Mat,NA|AS,AN'
+      'MAT,Mat,NA|AS,AN',
     ].join('\n');
     const result = parseCSV(csv);
     assert.equal(result.items[0].values.length, 3);
@@ -332,7 +404,7 @@ describe('parseCSV', () => {
     const csv = [
       'Codi,Nom,Opcions,"Garcia, Maria"',
       '#ID,,,RALC001',
-      'MAT,"Matematiques, bla",NA|AS,AN'
+      'MAT,"Matematiques, bla",NA|AS,AN',
     ].join('\n');
     const result = parseCSV(csv);
     assert.equal(result.studentNames[0], 'Garcia, Maria');
@@ -349,8 +421,10 @@ describe('parseCSV', () => {
 
 describe('escapeHtml', () => {
   it('escapa caracters HTML basics', () => {
-    assert.equal(escapeHtml('<script>alert("xss")</script>'),
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    assert.equal(
+      escapeHtml('<script>alert("xss")</script>'),
+      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
+    );
   });
 
   it('escapa ampersands', () => {
@@ -366,56 +440,88 @@ describe('escapeHtml', () => {
   });
 
   it('escapa cometes simples', () => {
-    assert.equal(escapeHtml("l'escola"), "l&#039;escola");
+    assert.equal(escapeHtml("l'escola"), 'l&#039;escola');
   });
 });
 
 describe('getFilteredOptions', () => {
   const allItems = [
     {
-      code: 'MAT', name: 'Matematiques', type: 'subject',
+      code: 'MAT',
+      name: 'Matematiques',
+      type: 'subject',
       options: [
-        { value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' },
-        { value: 'G' }, { value: 'P' }, { value: 'F' }, { value: 'M' }
-      ]
+        { value: 'NA' },
+        { value: 'AS' },
+        { value: 'AN' },
+        { value: 'AE' },
+        { value: 'G' },
+        { value: 'P' },
+        { value: 'F' },
+        { value: 'M' },
+      ],
     },
     {
-      code: 'MAT01', name: 'Algebra', type: 'item',
+      code: 'MAT01',
+      name: 'Algebra',
+      type: 'item',
       options: [
-        { value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' },
-        { value: 'G' }, { value: 'P' }, { value: 'F' }, { value: 'M' }
-      ]
+        { value: 'NA' },
+        { value: 'AS' },
+        { value: 'AN' },
+        { value: 'AE' },
+        { value: 'G' },
+        { value: 'P' },
+        { value: 'F' },
+        { value: 'M' },
+      ],
     },
     {
-      code: 'CAT', name: 'Catala', type: 'subject',
+      code: 'CAT',
+      name: 'Catala',
+      type: 'subject',
       options: [
-        { value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' },
-        { value: 'G' }, { value: 'P' }, { value: 'F' }, { value: 'M' }
-      ]
+        { value: 'NA' },
+        { value: 'AS' },
+        { value: 'AN' },
+        { value: 'AE' },
+        { value: 'G' },
+        { value: 'P' },
+        { value: 'F' },
+        { value: 'M' },
+      ],
     },
     {
-      code: 'CAT01', name: 'Lectura', type: 'item',
+      code: 'CAT01',
+      name: 'Lectura',
+      type: 'item',
       options: [
-        { value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' },
-        { value: 'G' }, { value: 'P' }, { value: 'F' }, { value: 'M' }
-      ]
-    }
+        { value: 'NA' },
+        { value: 'AS' },
+        { value: 'AN' },
+        { value: 'AE' },
+        { value: 'G' },
+        { value: 'P' },
+        { value: 'F' },
+        { value: 'M' },
+      ],
+    },
   ];
 
   it('filtra per assoliment (NA/AS/AN/AE)', () => {
-    const mapping = { 'MAT': 'assoliment', 'CAT': 'assoliment' };
+    const mapping = { MAT: 'assoliment', CAT: 'assoliment' };
     const result = getFilteredOptions(allItems[1], allItems, mapping);
     assert.deepEqual(result, ['NA', 'AS', 'AN', 'AE']);
   });
 
   it('filtra per valoracio (G/P/F/M)', () => {
-    const mapping = { 'MAT': 'valoracio', 'CAT': 'valoracio' };
+    const mapping = { MAT: 'valoracio', CAT: 'valoracio' };
     const result = getFilteredOptions(allItems[1], allItems, mapping);
     assert.deepEqual(result, ['G', 'P', 'F', 'M']);
   });
 
   it('retorna totes les opcions amb "totes"', () => {
-    const mapping = { 'MAT': 'totes' };
+    const mapping = { MAT: 'totes' };
     const result = getFilteredOptions(allItems[1], allItems, mapping);
     assert.deepEqual(result, ['NA', 'AS', 'AN', 'AE', 'G', 'P', 'F', 'M']);
   });
@@ -427,13 +533,13 @@ describe('getFilteredOptions', () => {
   });
 
   it('funciona amb subjects directament', () => {
-    const mapping = { 'MAT': 'assoliment' };
+    const mapping = { MAT: 'assoliment' };
     const result = getFilteredOptions(allItems[0], allItems, mapping);
     assert.deepEqual(result, ['NA', 'AS', 'AN', 'AE']);
   });
 
   it('items hereten el mapping de la seva materia', () => {
-    const mapping = { 'MAT': 'assoliment', 'CAT': 'valoracio' };
+    const mapping = { MAT: 'assoliment', CAT: 'valoracio' };
     const matItem = getFilteredOptions(allItems[1], allItems, mapping);
     const catItem = getFilteredOptions(allItems[3], allItems, mapping);
     assert.deepEqual(matItem, ['NA', 'AS', 'AN', 'AE']);
@@ -442,11 +548,13 @@ describe('getFilteredOptions', () => {
 
   it('nomes retorna opcions que existeixen al original', () => {
     const itemWithFewOptions = {
-      code: 'MAT02', name: 'Geometria', type: 'item',
-      options: [{ value: 'NA' }, { value: 'AE' }]
+      code: 'MAT02',
+      name: 'Geometria',
+      type: 'item',
+      options: [{ value: 'NA' }, { value: 'AE' }],
     };
     const items = [allItems[0], itemWithFewOptions];
-    const mapping = { 'MAT': 'assoliment' };
+    const mapping = { MAT: 'assoliment' };
     const result = getFilteredOptions(itemWithFewOptions, items, mapping);
     assert.deepEqual(result, ['NA', 'AE']);
   });
@@ -462,7 +570,7 @@ describe('Integracio: CSV round-trip', () => {
       'DM02,Responsabilitat,NA|AS|AN|AE,AS,AN',
       'CAT,Catala,G|P|F|M,,',
       'CAT01,Comprensio lectora,G|P|F|M,F,M',
-      'CAT02,Expressio escrita,G|P|F|M,G,P'
+      'CAT02,Expressio escrita,G|P|F|M,G,P',
     ].join('\n');
 
     const result = parseCSV(csv);
@@ -480,5 +588,228 @@ describe('Integracio: CSV round-trip', () => {
     const cat02 = result.items.find((i) => i.code === 'CAT02');
     assert.equal(cat02.values[0], 'G');
     assert.equal(cat02.values[1], 'P');
+  });
+});
+
+describe('buildSheetData', () => {
+  const testItems = [
+    {
+      code: 'MAT',
+      name: 'Matematiques',
+      type: 'subject',
+      options: [{ value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' }],
+    },
+    {
+      code: 'MAT01',
+      name: 'Algebra',
+      type: 'item',
+      options: [{ value: 'NA' }, { value: 'AS' }, { value: 'AN' }, { value: 'AE' }],
+    },
+    {
+      code: 'CAT',
+      name: 'Catala',
+      type: 'subject',
+      options: [{ value: 'G' }, { value: 'P' }, { value: 'F' }, { value: 'M' }],
+    },
+  ];
+
+  const testStudents = [
+    { nom: 'Garcia, Maria', idRalc: 'RALC001', id: '1' },
+    { nom: 'Lopez, Pere', idRalc: 'RALC002', id: '2' },
+  ];
+
+  // Simple identity filter for testing
+  const simpleFilter = (item) => item.options.map((o) => o.value);
+
+  it("genera capcalera amb noms d'alumnes", () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    assert.deepEqual(data[0], ['Codi', 'Nom', 'Opcions', 'Garcia, Maria', 'Lopez, Pere']);
+  });
+
+  it("genera fila d'IDs amb RALC", () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    assert.deepEqual(data[1], ['#ID', '', '', 'RALC001', 'RALC002']);
+  });
+
+  it('genera files de dades amb opcions filtrades', () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    // Fila MAT (index 2)
+    assert.equal(data[2][0], 'MAT');
+    assert.equal(data[2][1], 'Matematiques');
+    assert.equal(data[2][2], 'NA|AS|AN|AE');
+    // Columnes d'alumnes buides
+    assert.equal(data[2][3], '');
+    assert.equal(data[2][4], '');
+  });
+
+  it("inclou valors actuals per l'alumne actual", () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+      currentValues: { MAT: 'AN', MAT01: 'AE', CAT: 'F' },
+      currentStudent: { nom: 'Garcia, Maria', idRalc: 'RALC001' },
+    });
+
+    // Garcia (RALC001) te valors, Lopez no
+    assert.equal(data[2][3], 'AN'); // MAT per Garcia
+    assert.equal(data[2][4], ''); // MAT per Lopez
+    assert.equal(data[3][3], 'AE'); // MAT01 per Garcia
+    assert.equal(data[4][3], 'F'); // CAT per Garcia
+  });
+
+  it('funciona amb un sol alumne actual (sense llista)', () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: [],
+      getFilteredOptions: simpleFilter,
+      currentValues: { MAT: 'AS' },
+      currentStudent: { nom: 'Alumne Prova', idRalc: 'RALC999' },
+    });
+
+    assert.deepEqual(data[0], ['Codi', 'Nom', 'Opcions', 'Alumne Prova']);
+    assert.deepEqual(data[1], ['#ID', '', '', 'RALC999']);
+    assert.equal(data[2][3], 'AS'); // MAT value
+  });
+
+  it('genera el nombre correcte de files', () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    // 1 capcalera + 1 IDs + 3 items = 5 files
+    assert.equal(data.length, 5);
+  });
+
+  it('totes les files tenen el mateix nombre de columnes', () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    const expectedCols = 3 + testStudents.length;
+    for (const row of data) {
+      assert.equal(
+        row.length,
+        expectedCols,
+        'Fila amb columnes incorrectes: ' + JSON.stringify(row)
+      );
+    }
+  });
+
+  it('les dades generades es poden parsejar com a CSV', () => {
+    const data = buildSheetData({
+      items: testItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+      currentValues: { MAT01: 'AN' },
+      currentStudent: { nom: 'Garcia, Maria', idRalc: 'RALC001' },
+    });
+
+    // Convertim a CSV
+    const csvContent = data
+      .map((row) =>
+        row
+          .map((cell) => {
+            const str = String(cell);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+              return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+          })
+          .join(',')
+      )
+      .join('\n');
+
+    // Parsejem el CSV generat
+    const parsed = parseCSV(csvContent);
+    assert.notEqual(parsed, null);
+    assert.equal(parsed.studentNames.length, 2);
+    assert.equal(parsed.studentNames[0], 'Garcia, Maria');
+    assert.equal(parsed.items.length, 3);
+
+    // Verifiquem el valor omplert
+    const mat01 = parsed.items.find((i) => i.code === 'MAT01');
+    assert.equal(mat01.values[0], 'AN');
+    assert.equal(mat01.values[1], '');
+  });
+});
+
+describe('getSelectedItems', () => {
+  const allItems = [
+    { code: 'MAT', name: 'Matematiques', type: 'subject', options: [] },
+    { code: 'MAT01', name: 'Algebra', type: 'item', options: [] },
+    { code: 'MAT02', name: 'Geometria', type: 'item', options: [] },
+    { code: 'ANG', name: 'Angles', type: 'subject', options: [] },
+    { code: 'ANG01', name: 'Reading', type: 'item', options: [] },
+    { code: 'MUS', name: 'Musica', type: 'subject', options: [] },
+    { code: 'MUS01', name: 'Ritme', type: 'item', options: [] },
+    { code: 'CAT', name: 'Catala', type: 'subject', options: [] },
+    { code: 'CAT01', name: 'Lectura', type: 'item', options: [] },
+  ];
+
+  it('retorna tots els items si tots estan seleccionats', () => {
+    const selected = { MAT: true, ANG: true, MUS: true, CAT: true };
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, allItems.length);
+  });
+
+  it('exclou una materia i els seus fills', () => {
+    const selected = { MAT: true, ANG: false, MUS: true, CAT: true };
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, 7); // 9 - 2 (ANG + ANG01)
+    assert.ok(!result.find((i) => i.code === 'ANG'));
+    assert.ok(!result.find((i) => i.code === 'ANG01'));
+  });
+
+  it('exclou multiples materies', () => {
+    const selected = { MAT: true, ANG: false, MUS: false, CAT: true };
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, 5); // MAT(3) + CAT(2)
+    const codes = result.map((i) => i.code);
+    assert.deepEqual(codes, ['MAT', 'MAT01', 'MAT02', 'CAT', 'CAT01']);
+  });
+
+  it('tracta undefined com a seleccionat (per defecte)', () => {
+    const selected = {}; // Cap definicio = tots seleccionats
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, allItems.length);
+  });
+
+  it('retorna buit si no hi ha estructura', () => {
+    const result = getSelectedItems(null, {});
+    assert.deepEqual(result, []);
+  });
+
+  it('retorna buit si es desmarquen totes', () => {
+    const selected = { MAT: false, ANG: false, MUS: false, CAT: false };
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, 0);
+  });
+
+  it('nomes inclou una materia seleccionada', () => {
+    const selected = { MAT: false, ANG: false, MUS: false, CAT: true };
+    const result = getSelectedItems(allItems, selected);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].code, 'CAT');
+    assert.equal(result[1].code, 'CAT01');
   });
 });

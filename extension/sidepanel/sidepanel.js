@@ -1,8 +1,8 @@
 /**
  * Esfer@ Helper - Side Panel Logic
- * 
+ *
  * Coordina la comunicacio amb el content script i gestiona la UI.
- * 
+ *
  * Flux principal:
  * 1. Capturar estructura d'items d'esfer@
  * 1b. Configurar qualificadors per materia
@@ -19,18 +19,18 @@
   // =========================================================================
 
   const OPTION_SETS = {
-    'assoliment': {
+    assoliment: {
       label: 'Assoliment (NA/AS/AN/AE)',
-      values: ['NA', 'AS', 'AN', 'AE']
+      values: ['NA', 'AS', 'AN', 'AE'],
     },
-    'valoracio': {
+    valoracio: {
       label: 'Valoracio (G/P/F/M)',
-      values: ['G', 'P', 'F', 'M']
+      values: ['G', 'P', 'F', 'M'],
     },
-    'totes': {
+    totes: {
       label: 'Totes les opcions',
-      values: null
-    }
+      values: null,
+    },
   };
 
   // =========================================================================
@@ -41,9 +41,11 @@
   let lastDetectedScreen = '';
   let capturedStructure = null;
   let capturedStudents = null;
-  let loadedCSVData = null;      // Persistent entre alumnes!
+  let loadedCSVData = null; // Persistent entre alumnes!
   let optionsMapping = {};
-  let lastStudentId = '';        // Per detectar canvi d'alumne
+  let selectedSubjects = {}; // {code: true/false} - materies seleccionades per exportar/importar
+  let lastSpreadsheetId = null; // ID del darrer spreadsheet creat
+  let lastStudentId = ''; // Per detectar canvi d'alumne
 
   // =========================================================================
   // DOM REFERENCES
@@ -65,9 +67,15 @@
   const csvFileInput = $('#csv-file-input');
   const btnPresetAllNA = $('#btn-preset-all-na');
   const btnPresetAllGPFM = $('#btn-preset-all-gpfm');
+  const btnSelectAll = $('#btn-select-all');
+  const btnSelectNone = $('#btn-select-none');
   const btnSaveOptions = $('#btn-save-options');
   const btnCsvClear = $('#btn-csv-clear');
   const btnCsvReload = $('#btn-csv-reload');
+  const btnExportSheets = $('#btn-export-sheets');
+  const btnImportSheets = $('#btn-import-sheets');
+  const sheetsStatus = $('#sheets-status');
+  const btnGoogleLogout = $('#btn-google-logout');
 
   const structureResult = $('#structure-result');
   const exportSection = $('#export-section');
@@ -196,7 +204,12 @@
    */
   async function restoreState() {
     const stored = await chrome.storage.local.get([
-      'capturedStructure', 'capturedStudents', 'optionsMapping', 'loadedCSVData'
+      'capturedStructure',
+      'capturedStudents',
+      'optionsMapping',
+      'selectedSubjects',
+      'loadedCSVData',
+      'lastSpreadsheetId',
     ]);
     if (stored.capturedStructure) {
       capturedStructure = stored.capturedStructure;
@@ -208,8 +221,15 @@
     if (stored.optionsMapping) {
       optionsMapping = stored.optionsMapping;
     }
+    if (stored.selectedSubjects) {
+      selectedSubjects = stored.selectedSubjects;
+    }
     if (stored.loadedCSVData) {
       loadedCSVData = stored.loadedCSVData;
+    }
+    if (stored.lastSpreadsheetId) {
+      lastSpreadsheetId = stored.lastSpreadsheetId;
+      btnImportSheets.classList.remove('hidden');
     }
 
     // Mostrem banner del CSV si hi ha dades carregades
@@ -224,8 +244,11 @@
     if (loadedCSVData) {
       csvLoadedBanner.classList.remove('hidden');
       csvLoadedText.textContent =
-        'CSV carregat: ' + loadedCSVData.studentNames.length + ' alumnes, ' +
-        loadedCSVData.items.length + ' items';
+        'CSV carregat: ' +
+        loadedCSVData.studentNames.length +
+        ' alumnes, ' +
+        loadedCSVData.items.length +
+        ' items';
     } else {
       csvLoadedBanner.classList.add('hidden');
     }
@@ -250,18 +273,28 @@
 
   function displayStudentList(students) {
     $('#student-count').innerHTML =
-      '<strong>' + students.length + ' alumnes detectats</strong>' +
+      '<strong>' +
+      students.length +
+      ' alumnes detectats</strong>' +
       'Es generara una columna per cadascun al CSV.';
 
     const preview = $('#student-list-preview');
-    preview.innerHTML = students.map((s, i) =>
-      '<div class="list-item">' +
-      '<span class="code">' + (i + 1) + '</span>' +
-      '<span class="name">' + escapeHtml(s.nom) + '</span>' +
-      '<span class="value" style="color:#666; font-size:10px">' +
-      escapeHtml(s.idRalc || s.id) + '</span>' +
-      '</div>'
-    ).join('');
+    preview.innerHTML = students
+      .map(
+        (s, i) =>
+          '<div class="list-item">' +
+          '<span class="code">' +
+          (i + 1) +
+          '</span>' +
+          '<span class="name">' +
+          escapeHtml(s.nom) +
+          '</span>' +
+          '<span class="value" style="color:#666; font-size:10px">' +
+          escapeHtml(s.idRalc || s.id) +
+          '</span>' +
+          '</div>'
+      )
+      .join('');
   }
 
   // =========================================================================
@@ -278,12 +311,14 @@
         // Mostrem info de l'alumne amb comptador si tenim la llista
         let counterHtml = '';
         if (capturedStudents && capturedStudents.length > 0 && lastStudentId) {
-          const idx = capturedStudents.findIndex(
-            st => (st.idRalc || st.id) === lastStudentId
-          );
+          const idx = capturedStudents.findIndex((st) => (st.idRalc || st.id) === lastStudentId);
           if (idx >= 0) {
-            counterHtml = '<br><span class="student-counter">Alumne ' +
-              (idx + 1) + ' de ' + capturedStudents.length + '</span>';
+            counterHtml =
+              '<br><span class="student-counter">Alumne ' +
+              (idx + 1) +
+              ' de ' +
+              capturedStudents.length +
+              '</span>';
           }
         }
 
@@ -291,7 +326,8 @@
           '<strong>Alumne actual</strong>' +
           escapeHtml(s.nom || 'Desconegut') +
           '<br><span style="color:#666;font-size:11px">RALC: ' +
-          escapeHtml(s.idRalc || s.id || '?') + '</span>' +
+          escapeHtml(s.idRalc || s.id || '?') +
+          '</span>' +
           counterHtml;
       }
     } catch (e) {
@@ -339,20 +375,29 @@
 
     structureResult.className = 'result-box success';
     structureResult.innerHTML =
-      '<strong>' + items.length + ' items capturats</strong>' +
-      '(' + subjects.length + ' materies amb els seus subitems)<br><br>' +
-      subjects.map((s) => {
-        const sIdx = items.indexOf(s);
-        const nextSubjectIdx = items.findIndex(
-          (x, idx) => idx > sIdx && x.type === 'subject'
-        );
-        const endIdx = nextSubjectIdx === -1 ? items.length : nextSubjectIdx;
-        const childCount = items.slice(sIdx + 1, endIdx).filter(
-          (i) => i.type === 'item'
-        ).length;
-        return '<b>' + escapeHtml(s.code) + '</b> ' + escapeHtml(s.name) +
-          ' (' + childCount + ' items)';
-      }).join('<br>');
+      '<strong>' +
+      items.length +
+      ' items capturats</strong>' +
+      '(' +
+      subjects.length +
+      ' materies amb els seus subitems)<br><br>' +
+      subjects
+        .map((s) => {
+          const sIdx = items.indexOf(s);
+          const nextSubjectIdx = items.findIndex((x, idx) => idx > sIdx && x.type === 'subject');
+          const endIdx = nextSubjectIdx === -1 ? items.length : nextSubjectIdx;
+          const childCount = items.slice(sIdx + 1, endIdx).filter((i) => i.type === 'item').length;
+          return (
+            '<b>' +
+            escapeHtml(s.code) +
+            '</b> ' +
+            escapeHtml(s.name) +
+            ' (' +
+            childCount +
+            ' items)'
+          );
+        })
+        .join('<br>');
     structureResult.classList.remove('hidden');
 
     optionsSection.classList.remove('hidden');
@@ -370,32 +415,105 @@
       if (!optionsMapping[s.code]) {
         optionsMapping[s.code] = 'assoliment';
       }
+      // Per defecte, totes seleccionades
+      if (selectedSubjects[s.code] === undefined) {
+        selectedSubjects[s.code] = true;
+      }
     });
 
     renderOptionsMapping(subjects);
   }
 
-  function renderOptionsMapping(subjects) {
-    optionsMappingDiv.innerHTML = subjects.map((s) => {
-      const currentSet = optionsMapping[s.code] || 'assoliment';
-      const selectOptions = Object.keys(OPTION_SETS).map((key) =>
-        '<option value="' + key + '"' +
-        (key === currentSet ? ' selected' : '') + '>' +
-        escapeHtml(OPTION_SETS[key].label) + '</option>'
-      ).join('');
+  /**
+   * Retorna els items filtrats per les materies seleccionades.
+   * Inclou la materia (subject) i tots els seus fills (items).
+   */
+  function getSelectedItems() {
+    if (!capturedStructure) return [];
 
-      return '<div class="options-mapping-item">' +
-        '<span class="subject-code">' + escapeHtml(s.code) + '</span>' +
-        '<span class="subject-name" title="' + escapeHtml(s.name) + '">' +
-        escapeHtml(s.name) + '</span>' +
-        '<select data-subject="' + escapeHtml(s.code) + '">' +
-        selectOptions + '</select>' +
-        '</div>';
-    }).join('');
+    const result = [];
+    let currentSubjectSelected = false;
+
+    capturedStructure.forEach((item) => {
+      if (item.type === 'subject') {
+        currentSubjectSelected = selectedSubjects[item.code] !== false;
+      }
+      if (currentSubjectSelected) {
+        result.push(item);
+      }
+    });
+
+    return result;
+  }
+
+  function renderOptionsMapping(subjects) {
+    optionsMappingDiv.innerHTML = subjects
+      .map((s) => {
+        const currentSet = optionsMapping[s.code] || 'assoliment';
+        const isSelected = selectedSubjects[s.code] !== false;
+        const selectOptions = Object.keys(OPTION_SETS)
+          .map(
+            (key) =>
+              '<option value="' +
+              key +
+              '"' +
+              (key === currentSet ? ' selected' : '') +
+              '>' +
+              escapeHtml(OPTION_SETS[key].label) +
+              '</option>'
+          )
+          .join('');
+
+        return (
+          '<div class="options-mapping-item' +
+          (isSelected ? '' : ' excluded') +
+          '">' +
+          '<input type="checkbox" data-subject-check="' +
+          escapeHtml(s.code) +
+          '"' +
+          (isSelected ? ' checked' : '') +
+          ' title="Inclou aquesta materia a l\'exportacio">' +
+          '<span class="subject-code">' +
+          escapeHtml(s.code) +
+          '</span>' +
+          '<span class="subject-name" title="' +
+          escapeHtml(s.name) +
+          '">' +
+          escapeHtml(s.name) +
+          '</span>' +
+          '<select data-subject="' +
+          escapeHtml(s.code) +
+          '"' +
+          (isSelected ? '' : ' disabled') +
+          '>' +
+          selectOptions +
+          '</select>' +
+          '</div>'
+        );
+      })
+      .join('');
 
     optionsMappingDiv.querySelectorAll('select').forEach((sel) => {
       sel.addEventListener('change', (e) => {
         optionsMapping[e.target.dataset.subject] = e.target.value;
+      });
+    });
+
+    optionsMappingDiv.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      cb.addEventListener('change', (e) => {
+        const code = e.target.dataset.subjectCheck;
+        selectedSubjects[code] = e.target.checked;
+
+        // Actualitzem l'estil de la fila i l'estat del select
+        const row = e.target.closest('.options-mapping-item');
+        const sel = row.querySelector('select');
+        if (e.target.checked) {
+          row.classList.remove('excluded');
+          sel.disabled = false;
+        } else {
+          row.classList.add('excluded');
+          sel.disabled = true;
+        }
       });
     });
   }
@@ -408,8 +526,27 @@
     });
   }
 
+  function setAllSubjectsSelected(selected) {
+    const checkboxes = optionsMappingDiv.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach((cb) => {
+      cb.checked = selected;
+      const code = cb.dataset.subjectCheck;
+      selectedSubjects[code] = selected;
+
+      const row = cb.closest('.options-mapping-item');
+      const sel = row.querySelector('select');
+      if (selected) {
+        row.classList.remove('excluded');
+        sel.disabled = false;
+      } else {
+        row.classList.add('excluded');
+        sel.disabled = true;
+      }
+    });
+  }
+
   async function saveOptionsMapping() {
-    await chrome.storage.local.set({ optionsMapping });
+    await chrome.storage.local.set({ optionsMapping, selectedSubjects });
     btnSaveOptions.textContent = 'Desat!';
     setTimeout(() => {
       btnSaveOptions.textContent = 'Desa la configuracio';
@@ -466,7 +603,9 @@
         try {
           const valResponse = await sendToContentScript({ action: 'read-current-values' });
           if (valResponse && valResponse.values) {
-            valResponse.values.forEach((v) => { currentValues[v.code] = v.value; });
+            valResponse.values.forEach((v) => {
+              currentValues[v.code] = v.value;
+            });
           }
           const stuResponse = await sendToContentScript({ action: 'detect-current-student' });
           if (stuResponse && stuResponse.student) {
@@ -495,23 +634,23 @@
       }
       rows.push(idRow);
 
-      capturedStructure.forEach((item) => {
+      const itemsToExport = getSelectedItems();
+
+      itemsToExport.forEach((item) => {
         const filteredOpts = getFilteredOptions(item, capturedStructure);
 
-        const row = [
-          item.code,
-          item.name,
-          filteredOpts.join('|')
-        ];
+        const row = [item.code, item.name, filteredOpts.join('|')];
 
         if (capturedStudents && capturedStudents.length > 0) {
           capturedStudents.forEach((s) => {
             const studentId = s.idRalc || s.id;
-            const currentId = currentStudent
-              ? (currentStudent.idRalc || currentStudent.id)
-              : '';
-            if (includeCurrentValues && currentId &&
-                studentId === currentId && currentValues[item.code]) {
+            const currentId = currentStudent ? currentStudent.idRalc || currentStudent.id : '';
+            if (
+              includeCurrentValues &&
+              currentId &&
+              studentId === currentId &&
+              currentValues[item.code]
+            ) {
               row.push(currentValues[item.code]);
             } else {
               row.push('');
@@ -526,15 +665,19 @@
         rows.push(row);
       });
 
-      const csvContent = rows.map((row) =>
-        row.map((cell) => {
-          const str = String(cell);
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return '"' + str.replace(/"/g, '""') + '"';
-          }
-          return str;
-        }).join(',')
-      ).join('\n');
+      const csvContent = rows
+        .map((row) =>
+          row
+            .map((cell) => {
+              const str = String(cell);
+              if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+              }
+              return str;
+            })
+            .join(',')
+        )
+        .join('\n');
 
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -546,6 +689,167 @@
 
       setStatus('Connectat a Esfer@', 'connected');
     };
+  }
+
+  // =========================================================================
+  // GOOGLE SHEETS EXPORT
+  // =========================================================================
+
+  async function exportToSheets() {
+    if (!capturedStructure || capturedStructure.length === 0) {
+      alert("Primer has de capturar l'estructura d'items.");
+      return;
+    }
+
+    if (!capturedStudents) {
+      const stored = await chrome.storage.local.get(['capturedStudents']);
+      capturedStudents = stored.capturedStudents || [];
+    }
+
+    btnExportSheets.disabled = true;
+    btnExportSheets.textContent = 'Connectant amb Google...';
+    setStatus('Creant full de calcul...', 'working');
+    sheetsStatus.classList.add('hidden');
+
+    try {
+      // Llegim valors actuals si estem al formulari
+      let currentValues = {};
+      let currentStudent = null;
+
+      try {
+        const valResponse = await sendToContentScript({ action: 'read-current-values' });
+        if (valResponse && valResponse.values) {
+          valResponse.values.forEach((v) => {
+            currentValues[v.code] = v.value;
+          });
+        }
+        const stuResponse = await sendToContentScript({ action: 'detect-current-student' });
+        if (stuResponse && stuResponse.student) {
+          currentStudent = stuResponse.student;
+        }
+      } catch (e) {
+        // Si no podem llegir valors, continuem amb el sheet buit
+        console.warn("[Esfer@ Helper] No s'han pogut llegir valors actuals:", e);
+      }
+
+      const itemsToExport = getSelectedItems();
+
+      const result = await SheetsAPI.createSpreadsheet({
+        items: itemsToExport,
+        students: capturedStudents,
+        optionsMapping: optionsMapping,
+        optionSets: OPTION_SETS,
+        getFilteredOptions: getFilteredOptions,
+        currentValues: currentValues,
+        currentStudent: currentStudent,
+      });
+
+      // Guardem el spreadsheetId per poder-lo llegir despres
+      lastSpreadsheetId = result.spreadsheetId;
+      await chrome.storage.local.set({ lastSpreadsheetId });
+
+      // Obrim el spreadsheet en una nova pestanya
+      chrome.tabs.create({ url: result.spreadsheetUrl, active: false });
+
+      sheetsStatus.className = 'result-box success';
+      sheetsStatus.innerHTML =
+        '<strong>Full de calcul creat!</strong>' +
+        "S'ha obert en una nova pestanya. Quan hagis omplert les qualificacions, " +
+        'prem "Importa des de Sheets" per recuperar les dades.';
+      sheetsStatus.classList.remove('hidden');
+
+      // Mostrem el boto d'importar des de Sheets i el de logout
+      btnImportSheets.classList.remove('hidden');
+      btnGoogleLogout.classList.remove('hidden');
+
+      setStatus('Connectat a Esfer@', 'connected');
+    } catch (e) {
+      console.error('[Esfer@ Helper] Error creant spreadsheet:', e);
+
+      sheetsStatus.className = 'result-box error';
+      if (
+        e.message.includes('canceled') ||
+        e.message.includes('cancelled') ||
+        e.message.includes('user')
+      ) {
+        sheetsStatus.textContent = "S'ha cancel·lat l'autenticacio amb Google.";
+      } else if (e.message.includes('YOUR_CLIENT_ID')) {
+        sheetsStatus.innerHTML =
+          '<strong>Configuracio pendent</strong>' +
+          "Cal configurar el client_id de Google Cloud Console a l'extensio. " +
+          'Consulta la documentacio per als passos.';
+      } else {
+        sheetsStatus.textContent = 'Error: ' + e.message;
+      }
+      sheetsStatus.classList.remove('hidden');
+      setStatus('Connectat a Esfer@', 'connected');
+    }
+
+    btnExportSheets.disabled = false;
+    btnExportSheets.textContent = 'Obre a Google Sheets';
+  }
+
+  /**
+   * Actualitza la visibilitat del boto de logout de Google.
+   */
+  async function updateGoogleLoginState() {
+    try {
+      const isAuth = await SheetsAPI.isAuthenticated();
+      if (isAuth) {
+        btnGoogleLogout.classList.remove('hidden');
+      } else {
+        btnGoogleLogout.classList.add('hidden');
+      }
+    } catch (e) {
+      btnGoogleLogout.classList.add('hidden');
+    }
+  }
+
+  // =========================================================================
+  // GOOGLE SHEETS IMPORT
+  // =========================================================================
+
+  async function importFromSheets() {
+    if (!lastSpreadsheetId) {
+      alert('No hi ha cap full de calcul associat. Primer exporta a Google Sheets.');
+      return;
+    }
+
+    btnImportSheets.disabled = true;
+    btnImportSheets.textContent = 'Llegint dades...';
+    setStatus('Llegint des de Google Sheets...', 'working');
+    sheetsStatus.classList.add('hidden');
+
+    try {
+      const data = await SheetsAPI.readSpreadsheet(lastSpreadsheetId);
+
+      loadedCSVData = data;
+      await chrome.storage.local.set({ loadedCSVData });
+
+      updateCSVBanner();
+      await autoMatchCurrentStudent();
+
+      sheetsStatus.className = 'result-box success';
+      sheetsStatus.innerHTML =
+        '<strong>Dades importades des de Sheets!</strong>' +
+        data.studentNames.length +
+        ' alumnes, ' +
+        data.items.length +
+        ' items llegits.';
+      sheetsStatus.classList.remove('hidden');
+
+      setStatus('Connectat a Esfer@', 'connected');
+    } catch (e) {
+      console.error('[Esfer@ Helper] Error llegint spreadsheet:', e);
+
+      sheetsStatus.className = 'result-box error';
+      sheetsStatus.textContent = 'Error llegint el full: ' + e.message;
+      sheetsStatus.classList.remove('hidden');
+      setStatus('Connectat a Esfer@', 'connected');
+    }
+
+    btnImportSheets.disabled = false;
+    btnImportSheets.textContent = 'Importa des de Sheets';
   }
 
   // =========================================================================
@@ -651,34 +955,63 @@
       return;
     }
 
-    // Preview
-    const dataToFill = loadedCSVData.items.map((item) => ({
-      code: item.code,
-      name: item.name,
-      value: item.values[matchedColumn] || ''
-    })).filter((d) => d.value);
+    // Filtrem per materies seleccionades
+    const selectedCodes = new Set(getSelectedItems().map((i) => i.code));
 
-    const emptyCount = loadedCSVData.items.length - dataToFill.length;
+    // Preview
+    const dataToFill = loadedCSVData.items
+      .filter((item) => selectedCodes.has(item.code))
+      .map((item) => ({
+        code: item.code,
+        name: item.name,
+        value: item.values[matchedColumn] || '',
+      }))
+      .filter((d) => d.value);
+
+    const totalSelected = loadedCSVData.items.filter((item) => selectedCodes.has(item.code)).length;
+    const emptyCount = totalSelected - dataToFill.length;
+    const excludedCount = loadedCSVData.items.length - totalSelected;
 
     importPreview.classList.remove('hidden');
     const infoBox = $('#import-student-info');
     infoBox.style.background = '';
     infoBox.style.borderColor = '';
     infoBox.innerHTML =
-      '<strong>Alumne: ' + escapeHtml(matchedStudentName) + '</strong>' +
-      dataToFill.length + ' valors a importar' +
-      (emptyCount > 0 ? ' (' + emptyCount + ' buits)' : '');
+      '<strong>Alumne: ' +
+      escapeHtml(matchedStudentName) +
+      '</strong>' +
+      dataToFill.length +
+      ' valors a importar' +
+      (emptyCount > 0 ? ' (' + emptyCount + ' buits)' : '') +
+      (excludedCount > 0
+        ? '<br><span style="font-size:11px;color:#e65100">' +
+          excludedCount +
+          ' items exclosos (materies no seleccionades)</span>'
+        : '');
 
-    $('#import-data-preview').innerHTML = dataToFill.slice(0, 50).map((d) =>
-      '<div class="list-item">' +
-      '<span class="code">' + escapeHtml(d.code) + '</span>' +
-      '<span class="name">' + escapeHtml(d.name) + '</span>' +
-      '<span class="value">' + escapeHtml(d.value) + '</span>' +
-      '</div>'
-    ).join('') + (dataToFill.length > 50
-      ? '<div class="list-item" style="justify-content:center;color:#999">... i ' +
-        (dataToFill.length - 50) + ' mes</div>'
-      : '');
+    $('#import-data-preview').innerHTML =
+      dataToFill
+        .slice(0, 50)
+        .map(
+          (d) =>
+            '<div class="list-item">' +
+            '<span class="code">' +
+            escapeHtml(d.code) +
+            '</span>' +
+            '<span class="name">' +
+            escapeHtml(d.name) +
+            '</span>' +
+            '<span class="value">' +
+            escapeHtml(d.value) +
+            '</span>' +
+            '</div>'
+        )
+        .join('') +
+      (dataToFill.length > 50
+        ? '<div class="list-item" style="justify-content:center;color:#999">... i ' +
+          (dataToFill.length - 50) +
+          ' mes</div>'
+        : '');
 
     btnFillForm.classList.remove('hidden');
     btnFillAndNext.classList.remove('hidden');
@@ -705,17 +1038,21 @@
     }
     setStatus('Omplint formulari...', 'working');
 
+    // Filtrem per materies seleccionades
+    const selectedCodes = new Set(getSelectedItems().map((i) => i.code));
+
     const data = loadedCSVData.items
+      .filter((item) => selectedCodes.has(item.code))
       .map((item) => ({
         code: item.code,
-        value: item.values[colIndex] || ''
+        value: item.values[colIndex] || '',
       }))
       .filter((d) => d.value);
 
     try {
       const response = await sendToContentScript({
         action: 'fill-values',
-        data: data
+        data: data,
       });
 
       if (response) {
@@ -723,18 +1060,24 @@
         if (response.errors && response.errors.length > 0) {
           fillResult.className = 'result-box info';
           fillResult.innerHTML =
-            '<strong>' + response.success + ' camps omplerts</strong><br>' +
-            response.errors.length + ' errors:<br>' +
-            response.errors.slice(0, 5).map((e) =>
-              escapeHtml(e.code) + ': ' + escapeHtml(e.error)
-            ).join('<br>') +
+            '<strong>' +
+            response.success +
+            ' camps omplerts</strong><br>' +
+            response.errors.length +
+            ' errors:<br>' +
+            response.errors
+              .slice(0, 5)
+              .map((e) => escapeHtml(e.code) + ': ' + escapeHtml(e.error))
+              .join('<br>') +
             (response.errors.length > 5
               ? '<br>... i ' + (response.errors.length - 5) + ' mes'
               : '');
         } else {
           fillResult.className = 'result-box success';
           fillResult.innerHTML =
-            '<strong>' + response.success + ' camps omplerts correctament</strong><br>' +
+            '<strong>' +
+            response.success +
+            ' camps omplerts correctament</strong><br>' +
             (andNext
               ? 'Navegant al seguent alumne...'
               : 'Revisa els valors i prem "Desa" a Esfer@.');
@@ -743,7 +1086,7 @@
 
       // Si "Omple i Seguent", esperem un moment i naveguem
       if (andNext) {
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 800));
 
         // Primer intentem clicar "Desa" (si existeix i esta visible)
         // Despres naveguem al seguent
@@ -779,7 +1122,9 @@
     const lines = cleanText.split(/\r?\n/).filter((l) => l.trim());
 
     if (lines.length < 3) {
-      console.warn('[Esfer@ Helper] CSV massa curt: necessita minim 3 files (capcalera + IDs + dades)');
+      console.warn(
+        '[Esfer@ Helper] CSV massa curt: necessita minim 3 files (capcalera + IDs + dades)'
+      );
       return null;
     }
 
@@ -787,7 +1132,9 @@
 
     const header = rows[0];
     if (header.length < 4) {
-      console.warn('[Esfer@ Helper] CSV invalid: la capcalera necessita minim 4 columnes (Codi, Nom, Opcions, Alumne)');
+      console.warn(
+        '[Esfer@ Helper] CSV invalid: la capcalera necessita minim 4 columnes (Codi, Nom, Opcions, Alumne)'
+      );
       return null;
     }
 
@@ -795,7 +1142,9 @@
 
     // Validate ID row starts with #ID
     if (idRow[0] && idRow[0].trim() !== '#ID') {
-      console.warn('[Esfer@ Helper] CSV: la fila 2 hauria de comencar amb #ID, trobat: "' + idRow[0] + '"');
+      console.warn(
+        '[Esfer@ Helper] CSV: la fila 2 hauria de comencar amb #ID, trobat: "' + idRow[0] + '"'
+      );
       // Continue anyway - might be a manually created CSV
     }
 
@@ -804,14 +1153,14 @@
 
     // Validate we have at least one student
     if (studentNames.length === 0) {
-      console.warn('[Esfer@ Helper] CSV: no s\'han trobat columnes d\'alumnes');
+      console.warn("[Esfer@ Helper] CSV: no s'han trobat columnes d'alumnes");
       return null;
     }
 
     // Warn if student names are all empty
     const nonEmptyNames = studentNames.filter((n) => n && n.trim());
     if (nonEmptyNames.length === 0) {
-      console.warn('[Esfer@ Helper] CSV: totes les columnes d\'alumnes estan buides');
+      console.warn("[Esfer@ Helper] CSV: totes les columnes d'alumnes estan buides");
     }
 
     const items = [];
@@ -837,12 +1186,12 @@
         code: code,
         name: (row[1] || '').trim(),
         options: (row[2] || '').split('|').filter((o) => o.trim()),
-        values: values
+        values: values,
       });
     }
 
     if (items.length === 0) {
-      console.warn('[Esfer@ Helper] CSV: no s\'han trobat items amb dades');
+      console.warn("[Esfer@ Helper] CSV: no s'han trobat items amb dades");
       return null;
     }
 
@@ -910,6 +1259,8 @@
   // =========================================================================
 
   btnScrapeStructure.addEventListener('click', scrapeStructure);
+  btnExportSheets.addEventListener('click', exportToSheets);
+  btnImportSheets.addEventListener('click', importFromSheets);
   btnExportCSV.addEventListener('click', generateCSV(false));
   btnExportCSVCurrent.addEventListener('click', generateCSV(true));
   btnLoadCSV.addEventListener('click', triggerCSVLoad);
@@ -918,6 +1269,8 @@
   btnFillAndNext.addEventListener('click', () => fillForm(true));
   btnPresetAllNA.addEventListener('click', () => applyPresetToAll('assoliment'));
   btnPresetAllGPFM.addEventListener('click', () => applyPresetToAll('valoracio'));
+  btnSelectAll.addEventListener('click', () => setAllSubjectsSelected(true));
+  btnSelectNone.addEventListener('click', () => setAllSubjectsSelected(false));
   btnSaveOptions.addEventListener('click', saveOptionsMapping);
 
   btnCsvClear.addEventListener('click', async () => {
@@ -932,6 +1285,15 @@
     csvFileInput.click();
   });
 
+  // Logout de Google
+  btnGoogleLogout.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await SheetsAPI.revokeToken();
+    btnGoogleLogout.classList.add('hidden');
+    btnImportSheets.classList.add('hidden');
+    sheetsStatus.classList.add('hidden');
+  });
+
   // Esborrat total de dades (RGPD - Dret de supressio)
   const btnClearAllData = $('#btn-clear-all-data');
   if (btnClearAllData) {
@@ -939,14 +1301,17 @@
       e.preventDefault();
       const confirmed = confirm(
         'Segur que vols esborrar TOTES les dades emmagatzemades?\n\n' +
-        'Aixo inclou:\n' +
-        '- Estructura d\'items capturada\n' +
-        '- Llista d\'alumnes\n' +
-        '- Configuracio de qualificadors\n' +
-        '- CSV carregat\n\n' +
-        'Aquesta accio no es pot desfer.'
+          'Aixo inclou:\n' +
+          "- Estructura d'items capturada\n" +
+          "- Llista d'alumnes\n" +
+          '- Configuracio de qualificadors\n' +
+          '- CSV carregat\n\n' +
+          'Aquesta accio no es pot desfer.'
       );
       if (!confirmed) return;
+
+      // Revokem token de Google si existeix
+      await SheetsAPI.revokeToken();
 
       // Esborrem tot de storage
       await chrome.storage.local.clear();
@@ -956,6 +1321,8 @@
       capturedStudents = null;
       loadedCSVData = null;
       optionsMapping = {};
+      selectedSubjects = {};
+      lastSpreadsheetId = null;
       lastStudentId = '';
       lastDetectedScreen = '';
 
@@ -966,6 +1333,9 @@
       structureResult.classList.add('hidden');
       optionsSection.classList.add('hidden');
       exportSection.classList.add('hidden');
+      sheetsStatus.classList.add('hidden');
+      btnGoogleLogout.classList.add('hidden');
+      btnImportSheets.classList.add('hidden');
 
       alert('Totes les dades han estat esborrades.');
     });
@@ -977,6 +1347,7 @@
 
   // ---- Connexio inicial ----
   checkConnection();
+  updateGoogleLoginState();
 
   // ---- Deteccio basada en events (principal) ----
   chrome.tabs.onActivated.addListener(() => {
@@ -1001,5 +1372,4 @@
       checkConnection();
     }
   });
-
 })();
