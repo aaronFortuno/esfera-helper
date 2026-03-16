@@ -328,6 +328,48 @@ h2 {
   min-width: 100px;
 }
 
+/* CSV loaded banner */
+.csv-banner {
+  background: #e3f2fd;
+  border-color: #90caf9;
+}
+
+/* Fill buttons group */
+.fill-buttons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.fill-buttons .btn {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* Progress indicator */
+.progress-bar {
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+
+.progress-bar .progress-fill {
+  height: 100%;
+  background: #2e8b57;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Student navigation counter */
+.student-counter {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  margin-top: 4px;
+}
+
 /* Hidden utility */
 .hidden {
   display: none !important;

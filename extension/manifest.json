@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Esfer@ Helper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agilitza la introducció de qualificacions a Esfer@ capturant l'estructura i important dades des de Google Sheets.",
   "permissions": [
     "activeTab",
