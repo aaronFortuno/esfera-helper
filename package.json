@@ -1,0 +1,17 @@
+{
+  "name": "esfera-helper",
+  "version": "0.3.0",
+  "description": "Agilitza la introducció de qualificacions a Esfer@ capturant l'estructura i important dades des de Google Sheets.",
+  "private": true,
+  "scripts": {
+    "lint": "eslint extension/ tests/",
+    "lint:fix": "eslint --fix extension/ tests/",
+    "format": "prettier --write \"extension/**/*.{js,json,html,css}\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"extension/**/*.{js,json,html,css}\" \"tests/**/*.js\"",
+    "test": "node --test tests/unit.test.js"
+  },
+  "devDependencies": {
+    "eslint": "^10.0.3",
+    "prettier": "^3.8.1"
+  }
+}

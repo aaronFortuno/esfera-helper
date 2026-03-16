@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Esfer@ Helper",
-  "version": "0.2.0",
-  "description": "Agilitza la introducció de qualificacions a Esfer@ capturant l'estructura i important dades des de Google Sheets.",
+  "version": "0.3.0",
+  "description": "Agilitza la introduccio de qualificacions a Esfer@ amb exportacio/importacio CSV per a docents de Catalunya.",
   "permissions": [
     "activeTab",
     "sidePanel",
@@ -40,5 +40,6 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "offline_enabled": true
 }

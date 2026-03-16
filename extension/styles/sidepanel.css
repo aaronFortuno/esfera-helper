@@ -389,6 +389,22 @@ footer {
   text-align: center;
 }
 
+.footer-separator {
+  margin: 0 6px;
+  color: #ccc;
+}
+
+.footer-link {
+  color: #999;
+  text-decoration: none;
+  font-size: 10px;
+}
+
+.footer-link:hover {
+  color: #2e8b57;
+  text-decoration: underline;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

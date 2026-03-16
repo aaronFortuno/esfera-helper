@@ -196,7 +196,7 @@
    */
   async function restoreState() {
     const stored = await chrome.storage.local.get([
-      'capturedStructure', 'capturedStudents', 'optionsMapping'
+      'capturedStructure', 'capturedStudents', 'optionsMapping', 'loadedCSVData'
     ]);
     if (stored.capturedStructure) {
       capturedStructure = stored.capturedStructure;
@@ -207,6 +207,9 @@
     }
     if (stored.optionsMapping) {
       optionsMapping = stored.optionsMapping;
+    }
+    if (stored.loadedCSVData) {
+      loadedCSVData = stored.loadedCSVData;
     }
 
     // Mostrem banner del CSV si hi ha dades carregades
@@ -567,6 +570,9 @@
         return;
       }
 
+      // Persistim el CSV a storage
+      await chrome.storage.local.set({ loadedCSVData });
+
       updateCSVBanner();
       await autoMatchCurrentStudent();
     };
@@ -766,30 +772,82 @@
   // =========================================================================
 
   function parseCSV(csvText) {
-    const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 3) return null;
+    if (!csvText || typeof csvText !== 'string') return null;
+
+    // Remove BOM if present
+    const cleanText = csvText.replace(/^\uFEFF/, '');
+    const lines = cleanText.split(/\r?\n/).filter((l) => l.trim());
+
+    if (lines.length < 3) {
+      console.warn('[Esfer@ Helper] CSV massa curt: necessita minim 3 files (capcalera + IDs + dades)');
+      return null;
+    }
 
     const rows = lines.map(parseCSVLine);
 
     const header = rows[0];
-    if (header.length < 4) return null;
+    if (header.length < 4) {
+      console.warn('[Esfer@ Helper] CSV invalid: la capcalera necessita minim 4 columnes (Codi, Nom, Opcions, Alumne)');
+      return null;
+    }
 
     const idRow = rows[1];
+
+    // Validate ID row starts with #ID
+    if (idRow[0] && idRow[0].trim() !== '#ID') {
+      console.warn('[Esfer@ Helper] CSV: la fila 2 hauria de comencar amb #ID, trobat: "' + idRow[0] + '"');
+      // Continue anyway - might be a manually created CSV
+    }
 
     const studentNames = header.slice(3);
     const studentIds = idRow.slice(3);
 
+    // Validate we have at least one student
+    if (studentNames.length === 0) {
+      console.warn('[Esfer@ Helper] CSV: no s\'han trobat columnes d\'alumnes');
+      return null;
+    }
+
+    // Warn if student names are all empty
+    const nonEmptyNames = studentNames.filter((n) => n && n.trim());
+    if (nonEmptyNames.length === 0) {
+      console.warn('[Esfer@ Helper] CSV: totes les columnes d\'alumnes estan buides');
+    }
+
     const items = [];
+    let skippedRows = 0;
+
     for (let i = 2; i < rows.length; i++) {
       const row = rows[i];
-      if (!row[0]) continue;
+      const code = (row[0] || '').trim();
+
+      // Skip empty rows or comment rows
+      if (!code || code.startsWith('#')) {
+        skippedRows++;
+        continue;
+      }
+
+      // Ensure the row has enough columns (pad with empty strings if needed)
+      const values = row.slice(3);
+      while (values.length < studentNames.length) {
+        values.push('');
+      }
 
       items.push({
-        code: row[0],
-        name: row[1] || '',
-        options: (row[2] || '').split('|').filter((o) => o),
-        values: row.slice(3)
+        code: code,
+        name: (row[1] || '').trim(),
+        options: (row[2] || '').split('|').filter((o) => o.trim()),
+        values: values
       });
+    }
+
+    if (items.length === 0) {
+      console.warn('[Esfer@ Helper] CSV: no s\'han trobat items amb dades');
+      return null;
+    }
+
+    if (skippedRows > 0) {
+      console.log('[Esfer@ Helper] CSV: ' + skippedRows + ' files ignorades (buides o comentaris)');
     }
 
     return { studentNames, studentIds, items };
@@ -862,8 +920,9 @@
   btnPresetAllGPFM.addEventListener('click', () => applyPresetToAll('valoracio'));
   btnSaveOptions.addEventListener('click', saveOptionsMapping);
 
-  btnCsvClear.addEventListener('click', () => {
+  btnCsvClear.addEventListener('click', async () => {
     loadedCSVData = null;
+    await chrome.storage.local.remove('loadedCSVData');
     updateCSVBanner();
     importPreview.classList.add('hidden');
     fillResult.classList.add('hidden');
@@ -873,22 +932,73 @@
     csvFileInput.click();
   });
 
+  // Esborrat total de dades (RGPD - Dret de supressio)
+  const btnClearAllData = $('#btn-clear-all-data');
+  if (btnClearAllData) {
+    btnClearAllData.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const confirmed = confirm(
+        'Segur que vols esborrar TOTES les dades emmagatzemades?\n\n' +
+        'Aixo inclou:\n' +
+        '- Estructura d\'items capturada\n' +
+        '- Llista d\'alumnes\n' +
+        '- Configuracio de qualificadors\n' +
+        '- CSV carregat\n\n' +
+        'Aquesta accio no es pot desfer.'
+      );
+      if (!confirmed) return;
+
+      // Esborrem tot de storage
+      await chrome.storage.local.clear();
+
+      // Resetegem l'estat en memoria
+      capturedStructure = null;
+      capturedStudents = null;
+      loadedCSVData = null;
+      optionsMapping = {};
+      lastStudentId = '';
+      lastDetectedScreen = '';
+
+      // Actualitzem la UI
+      updateCSVBanner();
+      importPreview.classList.add('hidden');
+      fillResult.classList.add('hidden');
+      structureResult.classList.add('hidden');
+      optionsSection.classList.add('hidden');
+      exportSection.classList.add('hidden');
+
+      alert('Totes les dades han estat esborrades.');
+    });
+  }
+
   // =========================================================================
   // INITIALIZATION
   // =========================================================================
 
+  // ---- Connexio inicial ----
   checkConnection();
-  setInterval(checkConnection, 2000);
 
+  // ---- Deteccio basada en events (principal) ----
   chrome.tabs.onActivated.addListener(() => {
     lastDetectedScreen = '';
-    setTimeout(checkConnection, 500);
+    checkConnection();
   });
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'tab-updated' || message.action === 'content-script-navigation') {
       lastDetectedScreen = '';
-      setTimeout(checkConnection, 500);
+      checkConnection();
+    }
+  });
+
+  // ---- Poll de fallback (interval llarg, nomes per si els events fallen) ----
+  setInterval(checkConnection, 10000);
+
+  // ---- Deteccio de focus de finestra (quan l'usuari torna a la pestanya) ----
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      lastDetectedScreen = '';
+      checkConnection();
     }
   });
 

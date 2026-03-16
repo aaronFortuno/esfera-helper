@@ -13,6 +13,87 @@
   'use strict';
 
   // =========================================================================
+  // SELECTORS (centralitzats per facilitar manteniment)
+  // =========================================================================
+
+  const SELECTORS = {
+    // Pantalla llista d'alumnes
+    studentTable: [
+      'table[data-st-safe-src="vm.students_src"]',
+      'table[data-st-safe-src="vm.students"]'
+    ].join(', '),
+    studentRows: 'tr[data-ng-repeat*="alumne in vm.dummyStudents"]',
+    studentActionLink: 'a[data-ng-click*="toQualificacions"]',
+    
+    // Pantalla formulari
+    subjectRows: 'tr[data-ng-repeat*="scope in vm.scope_subjects"]',
+    childRows: 'div[data-ng-repeat*="area in scope.childs"]',
+    
+    // Capcaleres per color (principal) + fallback per estructura
+    subjectHeader: [
+      'div[style*="rgb(191, 189, 189)"]',
+      'div[style*="191, 189, 189"]',
+      'div[style*="#bfbdbd"]',
+      'div[style*="background-color: rgb(191"]',
+      'div.subject-header'
+    ].join(', '),
+    itemHeader: [
+      'div[style*="rgb(224, 224, 224)"]',
+      'div[style*="224, 224, 224"]',
+      'div[style*="#e0e0e0"]',
+      'div[style*="background-color: rgb(224"]',
+      'div.item-header'
+    ].join(', '),
+    
+    // Selects del formulari
+    formSelect: 'select[data-ng-model="el.value"]',
+    
+    // Breadcrumb
+    breadcrumb: '.breadcrumb li',
+    
+    // Boto seguent
+    nextButtons: 'button, a.btn, input[type="button"]',
+    nextArrows: '.glyphicon-chevron-right, .glyphicon-arrow-right, .fa-arrow-right, .fa-chevron-right'
+  };
+
+  /**
+   * Busca una capcalera de materia o item per codi, amb fallback.
+   * Estrategia: primer per selector de color, despres per text del codi.
+   * @param {string} code - Codi a buscar
+   * @param {string} type - 'subject', 'item' o 'any'
+   * @returns {Element|null}
+   */
+  function findHeaderByCode(code, type) {
+    const selectors = [];
+    if (type === 'subject' || type === 'any') selectors.push(SELECTORS.subjectHeader);
+    if (type === 'item' || type === 'any') selectors.push(SELECTORS.itemHeader);
+
+    for (const selector of selectors) {
+      const headers = document.querySelectorAll(selector);
+      for (const header of headers) {
+        const firstDiv = header.querySelector(':scope > div');
+        if (firstDiv && firstDiv.textContent.trim() === code) {
+          return header;
+        }
+      }
+    }
+
+    // Fallback: busquem qualsevol div amb un fill directe que contingui el codi
+    // i que tingui un <select> (indicador de fila de qualificacio)
+    const allDivs = document.querySelectorAll('div');
+    for (const div of allDivs) {
+      const firstChild = div.querySelector(':scope > div');
+      if (firstChild && firstChild.textContent.trim() === code) {
+        if (div.querySelector('select')) {
+          return div;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // =========================================================================
   // DETECCIO DE PANTALLA
   // =========================================================================
 
@@ -30,17 +111,12 @@
     }
 
     // Pantalla de llista d'alumnes - busquem la taula
-    const studentTable = document.querySelector(
-      'table[data-st-safe-src="vm.students_src"], ' +
-      'table[data-st-safe-src="vm.students"]'
-    );
+    const studentTable = document.querySelector(SELECTORS.studentTable);
     if (studentTable) {
       return 'student-list';
     }
 
-    const studentRows = document.querySelectorAll(
-      'tr[data-ng-repeat*="alumne in"]'
-    );
+    const studentRows = document.querySelectorAll(SELECTORS.studentRows);
     if (studentRows.length > 0) {
       return 'student-list';
     }
@@ -101,11 +177,12 @@
    * 
    * @returns {Array<{id: string, idRalc: string, idAlumne: string, nom: string}>}
    */
-  function scrapeStudentList() {
+  async function scrapeStudentList() {
+    // Wait for student rows to be rendered by AngularJS
+    await waitForElement(SELECTORS.studentRows);
+
     const students = [];
-    const rows = document.querySelectorAll(
-      'tr[data-ng-repeat*="alumne in vm.dummyStudents"]'
-    );
+    const rows = document.querySelectorAll(SELECTORS.studentRows);
 
     rows.forEach((row) => {
       const cells = row.querySelectorAll('td');
@@ -114,7 +191,7 @@
         const nom = cells[1].textContent.trim();
 
         // L'ID intern de l'alumne es pot extreure del ng-click del boto "Modifica"
-        const actionLink = row.querySelector('a[data-ng-click*="toQualificacions"]');
+        const actionLink = row.querySelector(SELECTORS.studentActionLink);
         let idAlumne = '';
         if (actionLink) {
           const ngClick = actionLink.getAttribute('data-ng-click') || '';
@@ -156,19 +233,18 @@
    * Captura l'estructura completa d'items/materies del formulari d'un alumne.
    * @returns {Array<{code, name, type: 'subject', options, children: Array}>}
    */
-  function scrapeFormStructure() {
+  async function scrapeFormStructure() {
+    // Wait for subject rows to be rendered by AngularJS
+    await waitForElement(SELECTORS.subjectRows);
+
     const structure = [];
 
     // Cada materia es un <tr> amb ng-repeat="scope in vm.scope_subjects"
-    const subjectRows = document.querySelectorAll(
-      'tr[data-ng-repeat*="scope in vm.scope_subjects"]'
-    );
+    const subjectRows = document.querySelectorAll(SELECTORS.subjectRows);
 
     subjectRows.forEach((subjectRow) => {
       // Capçalera de materia: fons gris fosc
-      const subjectHeader = subjectRow.querySelector(
-        'div[style*="rgb(191, 189, 189)"], div[style*="191, 189, 189"]'
-      );
+      const subjectHeader = subjectRow.querySelector(SELECTORS.subjectHeader);
 
       if (!subjectHeader) return;
 
@@ -192,14 +268,10 @@
       };
 
       // Items fills: fons gris clar
-      const childRows = subjectRow.querySelectorAll(
-        'div[data-ng-repeat*="area in scope.childs"]'
-      );
+      const childRows = subjectRow.querySelectorAll(SELECTORS.childRows);
 
       childRows.forEach((childRow) => {
-        const itemDiv = childRow.querySelector(
-          'div[style*="rgb(224, 224, 224)"], div[style*="224, 224, 224"]'
-        );
+        const itemDiv = childRow.querySelector(SELECTORS.itemHeader);
 
         if (!itemDiv) return;
 
@@ -273,7 +345,7 @@
     let nom = '';
     let fullBreadcrumbText = '';
 
-    const breadcrumbs = document.querySelectorAll('.breadcrumb li');
+    const breadcrumbs = document.querySelectorAll(SELECTORS.breadcrumb);
     if (breadcrumbs.length > 0) {
       const lastBreadcrumb = breadcrumbs[breadcrumbs.length - 1];
       fullBreadcrumbText = lastBreadcrumb.textContent.trim();
@@ -323,9 +395,9 @@
    * Llegeix els valors actuals de tots els selects del formulari.
    * @returns {Array<{code: string, value: string}>}
    */
-  function readCurrentValues() {
+  async function readCurrentValues() {
     const values = [];
-    const structure = scrapeFormStructure();
+    const structure = await scrapeFormStructure();
 
     structure.forEach((subject) => {
       const subjectValue = readSelectValueByCode(subject.code, 'subject');
@@ -386,7 +458,7 @@
 
     // Forcem un digest cycle final per assegurar que tot s'ha aplicat
     try {
-      const anySelect = document.querySelector('select[data-ng-model="el.value"]');
+      const anySelect = document.querySelector(SELECTORS.formSelect);
       if (anySelect) {
         const rootScope = angular.element(anySelect).scope().$root;
         if (rootScope && !rootScope.$$phase) {
@@ -448,39 +520,15 @@
    * Troba la fila del DOM corresponent a un codi d'item.
    */
   function findRowByCode(code, type) {
-    if (type === 'subject' || type === 'any') {
-      const subjectHeaders = document.querySelectorAll(
-        'div[style*="rgb(191, 189, 189)"]'
-      );
-      for (const header of subjectHeaders) {
-        const firstDiv = header.querySelector(':scope > div');
-        if (firstDiv && firstDiv.textContent.trim() === code) {
-          return header;
-        }
-      }
-    }
-
-    if (type === 'item' || type === 'any') {
-      const itemHeaders = document.querySelectorAll(
-        'div[style*="rgb(224, 224, 224)"]'
-      );
-      for (const header of itemHeaders) {
-        const firstDiv = header.querySelector(':scope > div');
-        if (firstDiv && firstDiv.textContent.trim() === code) {
-          return header;
-        }
-      }
-    }
-
-    return null;
+    return findHeaderByCode(code, type);
   }
 
   // =========================================================================
   // GENERACIO DE DADES PLANES (per CSV / Sheets)
   // =========================================================================
 
-  function getFlatItemList() {
-    const structure = scrapeFormStructure();
+  async function getFlatItemList() {
+    const structure = await scrapeFormStructure();
     const flat = [];
 
     structure.forEach((subject) => {
@@ -516,7 +564,7 @@
    */
   function clickNextStudent() {
     // Busquem el boto "Seguent" o "Siguiente" o icona >>
-    const buttons = document.querySelectorAll('button, a.btn, input[type="button"]');
+    const buttons = document.querySelectorAll(SELECTORS.nextButtons);
     for (const btn of buttons) {
       const text = btn.textContent.trim().toLowerCase();
       const title = (btn.getAttribute('title') || '').toLowerCase();
@@ -531,7 +579,7 @@
     }
 
     // Busquem per icona de fletxa
-    const arrows = document.querySelectorAll('.glyphicon-chevron-right, .glyphicon-arrow-right, .fa-arrow-right, .fa-chevron-right');
+    const arrows = document.querySelectorAll(SELECTORS.nextArrows);
     for (const arrow of arrows) {
       const clickable = arrow.closest('a, button');
       if (clickable) {
@@ -550,51 +598,76 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { action } = message;
 
-    switch (action) {
-      case 'detect-screen':
-        sendResponse({ screen: detectScreen() });
-        break;
+    try {
+      switch (action) {
+        case 'detect-screen':
+          sendResponse({ screen: detectScreen() });
+          break;
 
-      case 'scrape-students':
-        sendResponse({ students: scrapeStudentList() });
-        break;
+        case 'scrape-students':
+          scrapeStudentList().then((students) => {
+            sendResponse({ students });
+          }).catch((err) => {
+            console.error('[Esfer@ Helper] Error scraping students:', err);
+            sendResponse({ students: [], error: err.message });
+          });
+          return true;
 
-      case 'scrape-structure':
-        sendResponse({ structure: scrapeFormStructure() });
-        break;
+        case 'scrape-structure':
+          scrapeFormStructure().then((structure) => {
+            sendResponse({ structure });
+          }).catch((err) => {
+            console.error('[Esfer@ Helper] Error scraping structure:', err);
+            sendResponse({ structure: [], error: err.message });
+          });
+          return true;
 
-      case 'scrape-flat-items':
-        sendResponse({ items: getFlatItemList() });
-        break;
+        case 'scrape-flat-items':
+          getFlatItemList().then((items) => {
+            sendResponse({ items });
+          }).catch((err) => {
+            console.error('[Esfer@ Helper] Error getting flat items:', err);
+            sendResponse({ items: [], error: err.message });
+          });
+          return true;
 
-      case 'detect-current-student':
-        sendResponse({ student: detectCurrentStudent() });
-        break;
+        case 'detect-current-student':
+          sendResponse({ student: detectCurrentStudent() });
+          break;
 
-      case 'read-current-values':
-        sendResponse({ values: readCurrentValues() });
-        break;
+        case 'read-current-values':
+          readCurrentValues().then((values) => {
+            sendResponse({ values });
+          }).catch((err) => {
+            console.error('[Esfer@ Helper] Error reading values:', err);
+            sendResponse({ values: [], error: err.message });
+          });
+          return true;
 
-      case 'fill-values':
-        // fillFormValues es ara async, usem true per indicar resposta asincrona
-        fillFormValues(message.data || []).then((result) => {
-          sendResponse(result);
-        });
-        return true; // Indica resposta asincrona
+        case 'fill-values':
+          fillFormValues(message.data || []).then((result) => {
+            sendResponse(result);
+          }).catch((err) => {
+            console.error('[Esfer@ Helper] Error filling values:', err);
+            sendResponse({ success: 0, errors: [{ code: '*', error: err.message }] });
+          });
+          return true;
 
-      case 'click-next':
-        sendResponse({ clicked: clickNextStudent() });
-        break;
+        case 'click-next':
+          sendResponse({ clicked: clickNextStudent() });
+          break;
 
-      case 'ping':
-        sendResponse({ status: 'ok', screen: detectScreen() });
-        break;
+        case 'ping':
+          sendResponse({ status: 'ok', screen: detectScreen() });
+          break;
 
-      default:
-        sendResponse({ error: 'Accio desconeguda: ' + action });
+        default:
+          sendResponse({ error: 'Accio desconeguda: ' + action });
+      }
+    } catch (err) {
+      console.error('[Esfer@ Helper] Error inesperat al handler:', err);
+      sendResponse({ error: 'Error inesperat: ' + err.message });
     }
-
-    return true;
   });
 
   // =========================================================================
