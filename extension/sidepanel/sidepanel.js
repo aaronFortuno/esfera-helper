@@ -312,6 +312,9 @@
   // =========================================================================
 
   async function loadCurrentStudent() {
+    $('#current-student-info').innerHTML =
+      '<strong>Alumne actual</strong>' +
+      '<span style="color:#666;font-size:11px">Detectant alumne... pot trigar uns segons.</span>';
     try {
       const response = await sendToContentScript({ action: 'detect-current-student' });
       if (response && response.student) {
@@ -733,6 +736,20 @@
     if (!capturedStudents) {
       const stored = await chrome.storage.local.get(['capturedStudents']);
       capturedStudents = stored.capturedStudents || [];
+    }
+
+    // Si no tenim sessio, informem l'usuari abans de demanar autoritzacio
+    const isAuth = await SheetsAPI.isAuthenticated();
+    if (!isAuth) {
+      const consent = confirm(
+        "Per crear un full de calcul, cal autoritzar l'extensio a accedir " +
+          'al teu Google Drive.\n\n' +
+          'Aixo serveix UNICAMENT per crear un full de calcul amb les qualificacions ' +
+          'i poder-lo llegir despres. No es obligatori: si prefereixes, pots usar ' +
+          'el CSV manualment.\n\n' +
+          "Vols continuar amb l'autoritzacio?"
+      );
+      if (!consent) return;
     }
 
     btnExportSheets.disabled = true;

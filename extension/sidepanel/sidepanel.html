@@ -20,7 +20,10 @@
       <div class="empty-state">
         <div class="empty-icon">&#9684;</div>
         <p>Obre una pantalla d'avaluacio a Esfer@ per comencar.</p>
-        <p class="hint">L'extensio detectara automaticament la pantalla.</p>
+        <p class="hint">L'extensio detectara automaticament la pantalla.
+          La deteccio pot trigar fins a 15 segons.</p>
+        <p class="hint">Si no detecta la pantalla, deixa el panell obert 
+          i navega a una altra pantalla d'Esfer@ (llista de grups, etc.).</p>
       </div>
     </section>
 
@@ -133,14 +136,6 @@
       <!-- Pas 3: Importar dades -->
       <div class="action-group">
         <h2>3. Importar dades</h2>
-        <p class="help-text">
-          Carrega un CSV omplert per introduir les dades automaticament.
-          Un cop carregat, el CSV es mantindra entre alumnes.
-        </p>
-        <input type="file" id="csv-file-input" accept=".csv" class="hidden">
-        <button id="btn-load-csv" class="btn btn-primary btn-block">
-          Carrega CSV amb dades
-        </button>
         <div id="import-preview" class="hidden">
           <div id="import-student-info" class="info-box"></div>
           <div id="import-data-preview" class="list-preview"></div>
@@ -148,6 +143,15 @@
             Omple el formulari
           </button>
           <div id="fill-result" class="result-box hidden"></div>
+        </div>
+        <div class="import-csv-fallback">
+          <p class="help-text">
+            Si prefereixes no usar Google Sheets, pots carregar un CSV manualment.
+          </p>
+          <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+          <button id="btn-load-csv" class="btn btn-secondary btn-block">
+            Carrega CSV amb dades
+          </button>
         </div>
       </div>
     </section>
@@ -159,7 +163,7 @@
     <a href="#" id="btn-google-logout" class="footer-link hidden" title="Tanca la sessio de Google">Tanca sessio Google</a>
     <a href="#" id="btn-clear-all-data" class="footer-link" title="Esborra totes les dades emmagatzemades">Esborra dades</a>
     <span class="footer-separator">|</span>
-    <a href="https://aaronfortuno.github.io/esfera-helper/privacy-policy.html" target="_blank" class="footer-link">Privacitat</a>
+    <a href="https://aaronfortuno.github.io/esfera-helper/" target="_blank" class="footer-link">Privacitat</a>
   </footer>
 
   <script src="sheets-api.js"></script>

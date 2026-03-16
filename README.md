@@ -168,7 +168,7 @@ Esfer@ Helper processa i emmagatzema totes les dades exclusivament al navegador 
 
 L'extensio inclou un boto "Esborra totes les dades" per exercir el dret de supressio (RGPD Art. 17).
 
-Politica de privacitat completa: [privacitat](https://aaronfortuno.github.io/esfera-helper/privacy-policy.html)
+Politica de privacitat completa: [privacitat](https://aaronfortuno.github.io/esfera-helper/)
 
 ## Llicencia
 

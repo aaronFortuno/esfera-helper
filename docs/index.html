@@ -37,10 +37,10 @@
 
 <h1>Politica de Privacitat</h1>
 <p class="subtitle">Esfer@ Helper - Extensio de navegador per a docents de Catalunya<br>
-Ultima actualitzacio: 16 de marc de 2026</p>
+Ultima actualitzacio: 16 de marc de 2026 (v0.4.0)</p>
 
 <div class="highlight">
-  <strong>Resum:</strong> Esfer@ Helper NO envia cap dada a servidors externs. Totes les dades es processen i emmagatzemen exclusivament al teu navegador, al dispositiu local. No recollim, transmetem ni compartim cap informacio personal.
+  <strong>Resum:</strong> Esfer@ Helper emmagatzema totes les dades al teu navegador local. L'unica conexio externa es amb Google Sheets, <strong>nomes quan tu ho demanes explicitament</strong>, per crear un full de calcul al teu propi Google Drive. No recollim, transmetem ni compartim cap informacio personal amb tercers.
 </div>
 
 <h2>1. Responsable del tractament</h2>
@@ -90,16 +90,15 @@ Ultima actualitzacio: 16 de marc de 2026</p>
 <h2>3. On s'emmagatzemen les dades?</h2>
 
 <div class="highlight">
-  <strong>Totes les dades es queden al teu dispositiu.</strong> L'extensio utilitza exclusivament <code>chrome.storage.local</code>, que es l'emmagatzematge local del navegador, vinculat al teu perfil d'usuari.
+  <strong>Totes les dades es queden al teu dispositiu.</strong> L'extensio utilitza exclusivament <code>chrome.storage.local</code>, que es l'emmagatzematge local del navegador, vinculat al teu perfil d'usuari. L'unica excepcio es l'enviament opcional de dades a Google Sheets (veure seccio 5).
 </div>
 
 <ul>
-  <li>Les dades <strong>NO</strong> s'envien a cap servidor extern</li>
-  <li>Les dades <strong>NO</strong> es transmeten a cap servei al nuvol</li>
+  <li>Les dades <strong>NO</strong> s'envien a cap servidor propi</li>
   <li>Les dades <strong>NO</strong> es comparteixen amb tercers</li>
-  <li>Les dades <strong>NO</strong> surten del teu navegador en cap moment</li>
   <li>L'extensio <strong>NO</strong> te servidors propis ni backend</li>
   <li>L'extensio <strong>NO</strong> inclou analytics, telemetria ni seguiment d'us</li>
+  <li>La conexio a Google Sheets es <strong>opcional</strong> i requereix accio explicita de l'usuari</li>
 </ul>
 
 <h3>Dades emmagatzemades a <code>chrome.storage.local</code>:</h3>
@@ -129,6 +128,21 @@ Ultima actualitzacio: 16 de marc de 2026</p>
     <td>CSV importat (noms, RALC, qualificacions)</td>
     <td>Fins que l'usuari esborra o desinstal·la</td>
   </tr>
+  <tr>
+    <td><code>selectedSubjects</code></td>
+    <td>Materies seleccionades per exportar</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>lastSpreadsheetId</code></td>
+    <td>ID del darrer full de Google Sheets creat</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>sheetsAccessToken</code></td>
+    <td>Token d'acces OAuth2 de Google (temporal)</td>
+    <td>Caduca automaticament (~1h) o es revoca manualment</td>
+  </tr>
 </table>
 
 <h2>4. Base legal del tractament (RGPD Art. 6)</h2>
@@ -141,7 +155,15 @@ Ultima actualitzacio: 16 de marc de 2026</p>
 <p><strong>Important:</strong> Esfer@ Helper no es un responsable independent del tractament de dades dels alumnes. El responsable del tractament de les dades academiques es el centre educatiu i/o el Departament d'Educacio. L'extensio es una eina tecnica que facilita una tasca que el docent ja te autoritzada.</p>
 
 <h2>5. Transferencies de dades</h2>
-<p><strong>No existeixen.</strong> L'extensio no fa cap conexio de xarxa propia. Les uniques conexions de xarxa son les que fa el navegador amb Esfer@ (que ja existien abans d'instal·lar l'extensio).</p>
+<p>L'extensio pot conectar-se a <strong>Google Sheets API</strong> per crear fulls de calcul al Google Drive de l'usuari. Aquesta conexio:</p>
+<ul>
+  <li><strong>Nomes s'activa quan l'usuari clica explicitament</strong> el boto "Crea full a Google Sheets"</li>
+  <li>Requereix autoritzacio OAuth2 de l'usuari (que pot revocar en qualsevol moment)</li>
+  <li>Les dades s'envien <strong>directament al Google Drive de l'usuari</strong>, no a cap servidor intermedi</li>
+  <li>L'extensio no te servidors propis ni backend</li>
+  <li>El token d'acces es guarda localment i es pot esborrar amb "Tanca sessio Google" o "Esborra dades"</li>
+</ul>
+<p>No existeix cap altra transferencia de dades. L'extensio no te analytics, telemetria ni conexions automatiques.</p>
 
 <h2>6. Drets de l'usuari (RGPD Art. 15-22)</h2>
 <p>Com a usuari de l'extensio, tens els seguents drets sobre les dades emmagatzemades localment:</p>
@@ -194,7 +216,7 @@ Ultima actualitzacio: 16 de marc de 2026</p>
 </ul>
 
 <footer>
-  <p>Esfer@ Helper v0.3.0 - Projecte de codi obert sota llicencia MIT</p>
+  <p>Esfer@ Helper v0.4.0 - Projecte de codi obert sota llicencia MIT</p>
   <p>&copy; 2026 Aaron Fortuno</p>
 </footer>
 
