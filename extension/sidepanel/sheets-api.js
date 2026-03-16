@@ -26,7 +26,8 @@ const SheetsAPI = (function () {
 
   const SHEETS_CONFIG = {
     clientId: '490789126243-jdjedkl7v2d0c5erkl4t968vos8si0le.apps.googleusercontent.com',
-    scopes: 'https://www.googleapis.com/auth/spreadsheets',
+    scopes:
+      'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
     apiBase: 'https://sheets.googleapis.com/v4/spreadsheets',
     redirectPath: '/',
   };
@@ -565,6 +566,35 @@ const SheetsAPI = (function () {
   }
 
   // =========================================================================
+  // ELIMINACIO DE SPREADSHEET
+  // =========================================================================
+
+  /**
+   * Elimina un spreadsheet de Google Drive.
+   * Requereix el scope drive.file (que dona permis sobre fitxers creats per l'app).
+   *
+   * @param {string} spreadsheetId
+   * @returns {Promise<void>}
+   */
+  async function deleteSpreadsheet(spreadsheetId) {
+    const token = await getToken(true);
+
+    const response = await fetch('https://www.googleapis.com/drive/v3/files/' + spreadsheetId, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+
+    // 204 = eliminat correctament, 404 = ja no existeix (ok igualment)
+    if (!response.ok && response.status !== 404) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.error?.message ||
+          "No s'ha pogut eliminar el full de calcul (error " + response.status + ')'
+      );
+    }
+  }
+
+  // =========================================================================
   // API PUBLICA
   // =========================================================================
 
@@ -574,6 +604,7 @@ const SheetsAPI = (function () {
     isAuthenticated,
     createSpreadsheet,
     readSpreadsheet,
+    deleteSpreadsheet,
     buildSheetData,
     SHEETS_CONFIG,
   };

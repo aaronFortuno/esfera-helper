@@ -191,6 +191,16 @@ h2 {
   background: #1565c0;
 }
 
+.btn-danger {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
+.btn-danger:hover {
+  background: #ffcdd2;
+}
+
 .btn-block {
   display: block;
   width: 100%;

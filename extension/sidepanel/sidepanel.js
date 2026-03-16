@@ -73,6 +73,7 @@
   const btnCsvReload = $('#btn-csv-reload');
   const btnExportSheets = $('#btn-export-sheets');
   const btnNewSheet = $('#btn-new-sheet');
+  const btnDeleteSheet = $('#btn-delete-sheet');
   const btnImportSheets = $('#btn-import-sheets');
   const sheetsStatus = $('#sheets-status');
   const sheetsLink = $('#sheets-link');
@@ -846,12 +847,14 @@
     if (lastSpreadsheetId) {
       btnImportSheets.classList.remove('hidden');
       btnNewSheet.classList.remove('hidden');
+      btnDeleteSheet.classList.remove('hidden');
       btnGoogleLogout.classList.remove('hidden');
       sheetsLink.href = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
       sheetsLink.classList.remove('hidden');
     } else {
       btnImportSheets.classList.add('hidden');
       btnNewSheet.classList.add('hidden');
+      btnDeleteSheet.classList.add('hidden');
       sheetsLink.classList.add('hidden');
     }
   }
@@ -928,6 +931,48 @@
 
     btnImportSheets.disabled = false;
     btnImportSheets.textContent = 'Importa des de Sheets';
+  }
+
+  // =========================================================================
+  // GOOGLE SHEETS DELETE
+  // =========================================================================
+
+  async function deleteCurrentSheet() {
+    if (!lastSpreadsheetId) return;
+
+    const consent = confirm(
+      'Segur que vols eliminar el full de calcul de Google Drive?\n\n' +
+        "Aquesta accio es irreversible. El full s'eliminara permanentment " +
+        'del teu Google Drive.'
+    );
+    if (!consent) return;
+
+    btnDeleteSheet.disabled = true;
+    btnDeleteSheet.textContent = 'Eliminant...';
+    setStatus('Eliminant full de calcul...', 'working');
+
+    try {
+      await SheetsAPI.deleteSpreadsheet(lastSpreadsheetId);
+
+      sheetsStatus.className = 'result-box success';
+      sheetsStatus.textContent = "El full de calcul s'ha eliminat correctament.";
+      sheetsStatus.classList.remove('hidden');
+
+      lastSpreadsheetId = null;
+      await chrome.storage.local.remove(['lastSpreadsheetId']);
+      updateSheetsUI();
+
+      setStatus('Connectat a Esfer@', 'connected');
+    } catch (e) {
+      console.error('[Esfer@ Helper] Error eliminant spreadsheet:', e);
+      sheetsStatus.className = 'result-box error';
+      sheetsStatus.textContent = 'Error eliminant el full: ' + e.message;
+      sheetsStatus.classList.remove('hidden');
+      setStatus('Connectat a Esfer@', 'connected');
+    }
+
+    btnDeleteSheet.disabled = false;
+    btnDeleteSheet.textContent = 'Elimina el full';
   }
 
   // =========================================================================
@@ -1312,6 +1357,7 @@
   btnScrapeStructure.addEventListener('click', scrapeStructure);
   btnExportSheets.addEventListener('click', () => exportToSheets(false));
   btnNewSheet.addEventListener('click', () => exportToSheets(true));
+  btnDeleteSheet.addEventListener('click', deleteCurrentSheet);
   btnImportSheets.addEventListener('click', importFromSheets);
   btnExportCSV.addEventListener('click', generateCSV(false));
   btnExportCSVCurrent.addEventListener('click', generateCSV(true));
@@ -1349,6 +1395,7 @@
     btnGoogleLogout.classList.add('hidden');
     btnImportSheets.classList.add('hidden');
     btnNewSheet.classList.add('hidden');
+    btnDeleteSheet.classList.add('hidden');
     sheetsLink.classList.add('hidden');
     sheetsStatus.classList.add('hidden');
     updateSheetsButtonLabel();
@@ -1397,6 +1444,7 @@
       btnGoogleLogout.classList.add('hidden');
       btnImportSheets.classList.add('hidden');
       btnNewSheet.classList.add('hidden');
+      btnDeleteSheet.classList.add('hidden');
       sheetsLink.classList.add('hidden');
       updateSheetsButtonLabel();
 
