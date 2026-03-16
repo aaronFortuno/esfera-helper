@@ -254,12 +254,18 @@
   function updateCSVBanner() {
     if (loadedCSVData) {
       csvLoadedBanner.classList.remove('hidden');
+      const source = lastSpreadsheetId ? 'Sheets' : 'CSV';
       csvLoadedText.textContent =
-        'CSV carregat: ' +
+        source +
+        ': ' +
         loadedCSVData.studentNames.length +
         ' alumnes, ' +
         loadedCSVData.items.length +
         ' items';
+
+      // Amaguem el missatge "sense dades"
+      const noDataMsg = $('#no-data-message');
+      if (noDataMsg) noDataMsg.classList.add('hidden');
     } else {
       csvLoadedBanner.classList.add('hidden');
     }
@@ -387,6 +393,10 @@
   function showStructureResult(items) {
     const subjects = items.filter((i) => i.type === 'subject');
 
+    // Resum compacte al summary del details
+    const configSummary = $('#config-summary');
+    configSummary.textContent = items.length + ' items, ' + subjects.length + ' materies';
+
     structureResult.className = 'result-box success';
     structureResult.innerHTML =
       '<strong>' +
@@ -394,28 +404,15 @@
       ' items capturats</strong>' +
       '(' +
       subjects.length +
-      ' materies amb els seus subitems)<br><br>' +
-      subjects
-        .map((s) => {
-          const sIdx = items.indexOf(s);
-          const nextSubjectIdx = items.findIndex((x, idx) => idx > sIdx && x.type === 'subject');
-          const endIdx = nextSubjectIdx === -1 ? items.length : nextSubjectIdx;
-          const childCount = items.slice(sIdx + 1, endIdx).filter((i) => i.type === 'item').length;
-          return (
-            '<b>' +
-            escapeHtml(s.code) +
-            '</b> ' +
-            escapeHtml(s.name) +
-            ' (' +
-            childCount +
-            ' items)'
-          );
-        })
-        .join('<br>');
+      ' materies)';
     structureResult.classList.remove('hidden');
 
     optionsSection.classList.remove('hidden');
     exportSection.classList.remove('hidden');
+
+    // Amaguem el missatge "sense dades" al bloc d'omplir
+    const noDataMsg = $('#no-data-message');
+    if (noDataMsg) noDataMsg.classList.add('hidden');
   }
 
   // =========================================================================
@@ -743,12 +740,15 @@
     const isAuth = await SheetsAPI.isAuthenticated();
     if (!isAuth) {
       const consent = confirm(
-        "Per crear un full de calcul, cal autoritzar l'extensio a accedir " +
-          'al teu Google Drive.\n\n' +
-          'Aixo serveix UNICAMENT per crear un full de calcul amb les qualificacions ' +
-          'i poder-lo llegir despres. No es obligatori: si prefereixes, pots usar ' +
-          'el CSV manualment.\n\n' +
-          "Vols continuar amb l'autoritzacio?"
+        'Per crear un full de calcul, Google et demanara permis per:\n\n' +
+          '- Crear fulls de calcul al teu Drive\n' +
+          '- Llegir els fulls creats per aquesta extensio\n' +
+          '- Eliminar els fulls creats per aquesta extensio\n\n' +
+          "L'extensio NOMES accedeix als fulls que ella mateixa crea. " +
+          'No pot veure ni modificar cap altre fitxer del teu Drive.\n\n' +
+          'Es codi obert i auditable: github.com/aaronFortuno/esfera-helper\n\n' +
+          'Aixo NO es obligatori. Si prefereixes, pots usar el CSV manualment.\n\n' +
+          'Vols continuar?'
       );
       if (!consent) return;
     }
@@ -1060,17 +1060,13 @@
     if (matchedColumn === null) {
       importPreview.classList.remove('hidden');
       const infoBox = $('#import-student-info');
-      infoBox.className = 'info-box';
+      infoBox.className = 'match-info';
       infoBox.style.background = '#fff3e0';
       infoBox.style.borderColor = '#ffcc80';
       infoBox.innerHTML =
-        '<strong>Alumne no trobat al CSV</strong>' +
-        "L'alumne actual (" +
+        '<strong>Alumne no trobat</strong> ' +
         escapeHtml(currentStudent ? currentStudent.nom : '?') +
-        ') no coincideix amb cap columna del CSV.<br>' +
-        '<span style="font-size:11px">Columnes: ' +
-        loadedCSVData.studentNames.map((n) => escapeHtml(n)).join(', ') +
-        '</span>';
+        ' no coincideix amb cap columna.';
       $('#import-data-preview').innerHTML = '';
       btnFillForm.classList.add('hidden');
       fillResult.classList.add('hidden');
@@ -1096,14 +1092,15 @@
 
     importPreview.classList.remove('hidden');
     const infoBox = $('#import-student-info');
+    infoBox.className = 'match-info';
     infoBox.style.background = '';
     infoBox.style.borderColor = '';
     infoBox.innerHTML =
-      '<strong>Alumne: ' +
+      '<strong>' +
       escapeHtml(matchedStudentName) +
-      '</strong>' +
+      '</strong> &mdash; ' +
       dataToFill.length +
-      ' valors a importar' +
+      ' valors' +
       (emptyCount > 0 ? ' (' + emptyCount + ' buits)' : '') +
       (excludedCount > 0
         ? '<br><span style="font-size:11px;color:#e65100">' +
