@@ -20,7 +20,10 @@
       <div class="empty-state">
         <div class="empty-icon">&#9684;</div>
         <p>Obre una pantalla d'avaluacio a Esfer@ per comencar.</p>
-        <p class="hint">L'extensio detectara automaticament la pantalla.</p>
+        <p class="hint">L'extensio detectara automaticament la pantalla.
+          La deteccio pot trigar fins a 15 segons.</p>
+        <p class="hint">Si no detecta la pantalla, deixa el panell obert 
+          i navega a una altra pantalla d'Esfer@ (llista de grups, etc.).</p>
       </div>
     </section>
 
@@ -42,100 +45,141 @@
     <section id="screen-student-form" class="screen">
       <div id="current-student-info" class="info-box"></div>
 
-      <!-- Indicador CSV carregat -->
-      <div id="csv-loaded-banner" class="info-box csv-banner hidden">
-        <strong id="csv-loaded-text">CSV carregat</strong>
-        <div style="display:flex; gap:6px; margin-top:6px">
-          <button id="btn-csv-clear" class="btn btn-secondary btn-small" style="flex:1">
-            Descarrega CSV
-          </button>
-          <button id="btn-csv-reload" class="btn btn-secondary btn-small" style="flex:1">
-            Canvia CSV
-          </button>
+      <!-- Banner de dades carregades (CSV o Sheets) -->
+      <div id="csv-loaded-banner" class="data-banner hidden">
+        <div class="data-banner-content">
+          <strong id="csv-loaded-text">Dades carregades</strong>
+        </div>
+        <div class="data-banner-actions">
+          <button id="btn-csv-clear" class="btn btn-secondary btn-small">Esborra</button>
+          <button id="btn-csv-reload" class="btn btn-secondary btn-small">Canvia CSV</button>
         </div>
       </div>
 
-      <!-- Pas 1: Capturar estructura -->
-      <div class="action-group">
-        <h2>1. Capturar estructura</h2>
-        <p class="help-text">
-          Captura tots els items i materies del formulari actual.
-        </p>
-        <button id="btn-scrape-structure" class="btn btn-primary btn-block">
-          Captura estructura d'items
-        </button>
-        <div id="structure-result" class="result-box hidden"></div>
-      </div>
+      <!-- Configuracio (col·lapsable) -->
+      <details class="action-group" id="config-section">
+        <summary class="section-toggle">
+          <h2>Configuracio</h2>
+          <span id="config-summary" class="section-summary"></span>
+        </summary>
 
-      <!-- Pas 1b: Configurar qualificadors per materia -->
-      <div id="options-section" class="action-group hidden">
-        <h2>1b. Qualificadors per materia</h2>
-        <p class="help-text">
-          Per defecte, esfer@ mostra totes les opcions a cada select. 
-          Tria quin joc de qualificadors aplica realment a cada materia.
-          Aixi el CSV nomes tindra les opcions correctes.
-        </p>
-        <div class="options-preset">
-          <button id="btn-preset-all-na" class="btn btn-secondary btn-small" title="Posa NA/AS/AN/AE a totes les materies">
-            Totes: Assoliment (NA/AS/AN/AE)
+        <div class="config-inner">
+          <!-- Capturar estructura -->
+          <button id="btn-scrape-structure" class="btn btn-primary btn-block">
+            Captura estructura d'items
           </button>
-          <button id="btn-preset-all-gpfm" class="btn btn-secondary btn-small" title="Posa Gens/Poc/Forca/Molt a totes">
-            Totes: Valoracio (G/P/F/M)
-          </button>
-        </div>
-        <div id="options-mapping" class="options-mapping-list"></div>
-        <button id="btn-save-options" class="btn btn-primary btn-block" style="margin-top:8px">
-          Desa la configuracio
-        </button>
-      </div>
+          <div id="structure-result" class="result-box hidden"></div>
 
-      <!-- Pas 2: Exportar / Generar graella -->
-      <div id="export-section" class="action-group hidden">
-        <h2>2. Generar graella</h2>
-        <p class="help-text">
-          Genera un CSV amb l'estructura capturada, llest per omplir 
-          a Google Sheets.
-        </p>
-        <button id="btn-export-csv" class="btn btn-secondary btn-block">
-          Descarrega CSV buit
-        </button>
-        <button id="btn-export-csv-current" class="btn btn-secondary btn-block">
-          Descarrega CSV amb valors actuals
-        </button>
-      </div>
-
-      <!-- Pas 3: Importar dades -->
-      <div class="action-group">
-        <h2>3. Importar dades</h2>
-        <p class="help-text">
-          Carrega un CSV omplert per introduir les dades automaticament.
-          Un cop carregat, el CSV es mantindra entre alumnes.
-        </p>
-        <input type="file" id="csv-file-input" accept=".csv" class="hidden">
-        <button id="btn-load-csv" class="btn btn-primary btn-block">
-          Carrega CSV amb dades
-        </button>
-        <div id="import-preview" class="hidden">
-          <div id="import-student-info" class="info-box"></div>
-          <div id="import-data-preview" class="list-preview"></div>
-          <div class="fill-buttons">
-            <button id="btn-fill-form" class="btn btn-success btn-block">
-              Omple el formulari
-            </button>
-            <button id="btn-fill-and-next" class="btn btn-primary btn-block" title="Omple i navega al seguent alumne">
-              Omple i Seguent
+          <!-- Materies i qualificadors -->
+          <div id="options-section" class="hidden" style="margin-top:10px">
+            <p class="help-text">
+              Marca les materies a incloure. Les desmarcades no s'exportaran 
+              ni s'ompliran (proteccio contra sobreescriptures).
+            </p>
+            <div class="options-preset">
+              <button id="btn-select-all" class="btn btn-secondary btn-small" title="Selecciona totes les materies">
+                Totes
+              </button>
+              <button id="btn-select-none" class="btn btn-secondary btn-small" title="Desmarca totes les materies">
+                Cap
+              </button>
+              <button id="btn-preset-all-na" class="btn btn-secondary btn-small" title="NA/AS/AN/AE">
+                Assoliment
+              </button>
+              <button id="btn-preset-all-gpfm" class="btn btn-secondary btn-small" title="G/P/F/M">
+                Valoracio
+              </button>
+            </div>
+            <div id="options-mapping" class="options-mapping-list"></div>
+            <button id="btn-save-options" class="btn btn-primary btn-block" style="margin-top:8px">
+              Desa la configuracio
             </button>
           </div>
+        </div>
+      </details>
+
+      <!-- Graella -->
+      <div id="export-section" class="action-group hidden">
+        <h2>Graella</h2>
+
+        <!-- Selector de full existent -->
+        <div id="sheet-selector-section" class="hidden">
+          <select id="sheet-selector" class="sheet-selector"></select>
+        </div>
+
+        <div class="sheets-buttons">
+          <button id="btn-export-sheets" class="btn btn-primary" style="flex:1">
+            Crea full a Google Sheets
+          </button>
+          <button id="btn-import-sheets" class="btn btn-success hidden" style="flex:1">
+            Importa des de Sheets
+          </button>
+        </div>
+        <div class="sheets-secondary">
+          <button id="btn-delete-sheet" class="btn btn-danger btn-small hidden">
+            Elimina full
+          </button>
+        </div>
+
+        <!-- Nom personalitzat per al nou full -->
+        <div id="new-sheet-name-section" class="hidden">
+          <input type="text" id="new-sheet-name" class="sheet-name-input" 
+            placeholder="Nom del full (ex: 6eA, Musica 3rB...)">
+          <div class="sheets-buttons" style="margin-top:6px">
+            <button id="btn-create-sheet-confirm" class="btn btn-primary" style="flex:1">
+              Crea el full
+            </button>
+            <button id="btn-create-sheet-cancel" class="btn btn-secondary" style="flex:1">
+              Cancel·la
+            </button>
+          </div>
+        </div>
+
+        <div id="sheets-status" class="result-box hidden"></div>
+        <div class="export-csv-group">
+          <button id="btn-export-csv" class="btn btn-secondary btn-block">
+            Descarrega CSV buit
+          </button>
+          <button id="btn-export-csv-current" class="btn btn-secondary btn-block">
+            Descarrega CSV amb valors actuals
+          </button>
+        </div>
+      </div>
+
+      <!-- Omplir formulari -->
+      <div class="action-group">
+        <h2>Omplir formulari</h2>
+        <div id="import-preview" class="hidden">
+          <div id="import-student-info" class="match-info"></div>
+          <div id="import-data-preview" class="list-preview"></div>
+          <button id="btn-fill-form" class="btn btn-success btn-block">
+            Omple el formulari
+          </button>
           <div id="fill-result" class="result-box hidden"></div>
+        </div>
+        <div id="no-data-message" class="help-text" style="text-align:center;color:#999">
+          Genera o importa una graella per comencar a omplir.
+        </div>
+        <div class="import-csv-fallback" style="margin-top:8px">
+          <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+          <button id="btn-load-csv" class="btn btn-secondary btn-block">
+            Carrega CSV manualment
+          </button>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <span>v0.2.0</span>
+    <span>v0.4.0</span>
+    <span class="footer-separator">|</span>
+    <a href="#" id="btn-google-logout" class="footer-link hidden" title="Tanca la sessio de Google">Sessio Google</a>
+    <a href="#" id="btn-clear-all-data" class="footer-link" title="Esborra totes les dades emmagatzemades">Esborra dades</a>
+    <span class="footer-separator">|</span>
+    <a href="https://aaronfortuno.github.io/esfera-helper/" target="_blank" class="footer-link">Privacitat</a>
   </footer>
 
+  <script src="sheets-api.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

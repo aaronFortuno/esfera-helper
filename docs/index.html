@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Politica de Privacitat - Esfer@ Helper</title>
+  <style>
+    /* Clean, professional styling */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fafafa;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    h1 { font-size: 28px; color: #2e8b57; margin-bottom: 8px; }
+    h2 { font-size: 20px; color: #333; margin: 32px 0 12px; border-bottom: 2px solid #e0e0e0; padding-bottom: 6px; }
+    h3 { font-size: 16px; color: #555; margin: 20px 0 8px; }
+    p, ul, ol { margin-bottom: 16px; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    .highlight { background: #e8f5e9; border-left: 4px solid #2e8b57; padding: 16px; border-radius: 4px; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 10px 12px; border: 1px solid #e0e0e0; }
+    th { background: #f5f5f5; font-weight: 600; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e0e0e0; color: #999; font-size: 13px; }
+    a { color: #2e8b57; }
+  </style>
+</head>
+<body>
+
+<h1>Politica de Privacitat</h1>
+<p class="subtitle">Esfer@ Helper - Extensio de navegador per a docents de Catalunya<br>
+Ultima actualitzacio: 16 de marc de 2026 (v0.4.0)</p>
+
+<div class="highlight">
+  <strong>Resum:</strong> Esfer@ Helper emmagatzema totes les dades al teu navegador local. L'unica conexio externa es amb Google Sheets, <strong>nomes quan tu ho demanes explicitament</strong>, per crear un full de calcul al teu propi Google Drive. No recollim, transmetem ni compartim cap informacio personal amb tercers.
+</div>
+
+<h2>1. Responsable del tractament</h2>
+<p>Esfer@ Helper es un projecte de codi obert, distribuit sota llicencia MIT.</p>
+<ul>
+  <li><strong>Desenvolupador:</strong> Aarón Fortuño</li>
+  <li><strong>Repositori:</strong> <a href="https://github.com/aaronFortuno/esfera-helper">github.com/aaronFortuno/esfera-helper</a></li>
+  <li><strong>Contacte:</strong> A traves de les <a href="https://github.com/aaronFortuno/esfera-helper/issues">issues del repositori</a></li>
+</ul>
+
+<h2>2. Quines dades processa l'extensio?</h2>
+<p>L'extensio interactua amb les pagines d'avaluacio d'Esfer@ (aplicacio del Departament d'Educacio de la Generalitat de Catalunya) i processa les seguents dades que ja son visibles al navegador del docent:</p>
+
+<table>
+  <tr>
+    <th>Dada</th>
+    <th>Tipus</th>
+    <th>Proposit</th>
+  </tr>
+  <tr>
+    <td>Noms d'alumnes</td>
+    <td>Dada personal</td>
+    <td>Identificar columnes al CSV per assignar qualificacions</td>
+  </tr>
+  <tr>
+    <td>Codis RALC</td>
+    <td>Identificador personal</td>
+    <td>Fer correspondencia (matching) entre alumnes del CSV i del formulari</td>
+  </tr>
+  <tr>
+    <td>Qualificacions</td>
+    <td>Dada academica</td>
+    <td>Exportar/importar valors dels selects del formulari</td>
+  </tr>
+  <tr>
+    <td>Estructura d'items</td>
+    <td>Dada no personal</td>
+    <td>Generar l'estructura del CSV (codis de materies i items)</td>
+  </tr>
+  <tr>
+    <td>Configuracio de qualificadors</td>
+    <td>Dada no personal</td>
+    <td>Recordar quin joc d'opcions aplica a cada materia</td>
+  </tr>
+</table>
+
+<h2>3. On s'emmagatzemen les dades?</h2>
+
+<div class="highlight">
+  <strong>Totes les dades es queden al teu dispositiu.</strong> L'extensio utilitza exclusivament <code>chrome.storage.local</code>, que es l'emmagatzematge local del navegador, vinculat al teu perfil d'usuari. L'unica excepcio es l'enviament opcional de dades a Google Sheets (veure seccio 5).
+</div>
+
+<ul>
+  <li>Les dades <strong>NO</strong> s'envien a cap servidor propi</li>
+  <li>Les dades <strong>NO</strong> es comparteixen amb tercers</li>
+  <li>L'extensio <strong>NO</strong> te servidors propis ni backend</li>
+  <li>L'extensio <strong>NO</strong> inclou analytics, telemetria ni seguiment d'us</li>
+  <li>La conexio a Google Sheets es <strong>opcional</strong> i requereix accio explicita de l'usuari</li>
+</ul>
+
+<h3>Dades emmagatzemades a <code>chrome.storage.local</code>:</h3>
+<table>
+  <tr>
+    <th>Clau</th>
+    <th>Contingut</th>
+    <th>Persistencia</th>
+  </tr>
+  <tr>
+    <td><code>capturedStructure</code></td>
+    <td>Estructura d'items i materies</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>capturedStudents</code></td>
+    <td>Llista d'alumnes (nom, RALC)</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>optionsMapping</code></td>
+    <td>Configuracio de qualificadors per materia</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>loadedCSVData</code></td>
+    <td>CSV importat (noms, RALC, qualificacions)</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>selectedSubjects</code></td>
+    <td>Materies seleccionades per exportar</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>lastSpreadsheetId</code></td>
+    <td>ID del darrer full de Google Sheets creat</td>
+    <td>Fins que l'usuari esborra o desinstal·la</td>
+  </tr>
+  <tr>
+    <td><code>sheetsAccessToken</code></td>
+    <td>Token d'acces OAuth2 de Google (temporal)</td>
+    <td>Caduca automaticament (~1h) o es revoca manualment</td>
+  </tr>
+</table>
+
+<h2>4. Base legal del tractament (RGPD Art. 6)</h2>
+<p>El tractament de dades es basa en:</p>
+<ul>
+  <li><strong>Interes legitim (Art. 6.1.f):</strong> L'extensio actua com una eina d'assistencia per al docent, processant dades a les quals el docent ja te acces autoritzat a traves d'Esfer@. No hi ha tractament addicional mes enlla del que el docent ja pot fer manualment.</li>
+  <li><strong>Consentiment implicit de l'usuari (Art. 6.1.a):</strong> El docent instal·la voluntariament l'extensio i inicia activament cada accio (capturar, exportar, importar, omplir).</li>
+</ul>
+
+<p><strong>Important:</strong> Esfer@ Helper no es un responsable independent del tractament de dades dels alumnes. El responsable del tractament de les dades academiques es el centre educatiu i/o el Departament d'Educacio. L'extensio es una eina tecnica que facilita una tasca que el docent ja te autoritzada.</p>
+
+<h2>5. Transferencies de dades</h2>
+<p>L'extensio pot conectar-se a <strong>Google Sheets API</strong> per crear fulls de calcul al Google Drive de l'usuari. Aquesta conexio:</p>
+<ul>
+  <li><strong>Nomes s'activa quan l'usuari clica explicitament</strong> el boto "Crea full a Google Sheets"</li>
+  <li>Requereix autoritzacio OAuth2 de l'usuari (que pot revocar en qualsevol moment)</li>
+  <li>Les dades s'envien <strong>directament al Google Drive de l'usuari</strong>, no a cap servidor intermedi</li>
+  <li>L'extensio no te servidors propis ni backend</li>
+  <li>El token d'acces es guarda localment i es pot esborrar amb "Tanca sessio Google" o "Esborra dades"</li>
+</ul>
+<p>No existeix cap altra transferencia de dades. L'extensio no te analytics, telemetria ni conexions automatiques.</p>
+
+<h2>6. Drets de l'usuari (RGPD Art. 15-22)</h2>
+<p>Com a usuari de l'extensio, tens els seguents drets sobre les dades emmagatzemades localment:</p>
+
+<table>
+  <tr>
+    <th>Dret</th>
+    <th>Com exercir-lo</th>
+  </tr>
+  <tr>
+    <td><strong>Acces</strong> (Art. 15)</td>
+    <td>Pots consultar totes les dades a <code>chrome://extensions</code> > Esfer@ Helper > Inspeccionar > Application > Storage</td>
+  </tr>
+  <tr>
+    <td><strong>Supressio</strong> (Art. 17)</td>
+    <td>Utilitza el boto "Esborra totes les dades" al panell de l'extensio, o desinstal·la l'extensio</td>
+  </tr>
+  <tr>
+    <td><strong>Portabilitat</strong> (Art. 20)</td>
+    <td>Les dades s'exporten com a CSV estandard, compatible amb qualsevol full de calcul</td>
+  </tr>
+  <tr>
+    <td><strong>Limitacio</strong> (Art. 18)</td>
+    <td>Pots desactivar l'extensio temporalment a <code>chrome://extensions</code></td>
+  </tr>
+</table>
+
+<h2>7. Seguretat de les dades</h2>
+<ul>
+  <li>L'extensio nomes s'executa a pagines d'Esfer@ (<code>bfgh.aplicacions.ensenyament.gencat.cat</code>)</li>
+  <li>El codi font es 100% obert i auditable a <a href="https://github.com/aaronFortuno/esfera-helper">GitHub</a></li>
+  <li>No s'utilitzen dependancies externes de runtime (zero risc de supply chain)</li>
+  <li>La comunicacio entre components utilitza el sistema segur de missatgeria de Chrome Extensions</li>
+  <li>Les dades locals estan protegides pel perfil del navegador de l'usuari</li>
+</ul>
+
+<h2>8. Cookies i seguiment</h2>
+<p>L'extensio <strong>NO</strong> utilitza cookies, pixels de seguiment, fingerprinting, analytics ni cap altre mecanisme de rastreig.</p>
+
+<h2>9. Menors d'edat</h2>
+<p>L'extensio processa dades d'alumnes (que poden ser menors) de forma indirecta, ja que les dades ja son accessibles al docent a traves d'Esfer@. L'extensio no recull dades directament dels alumnes ni interactua amb ells. El tractament de dades de menors es responsabilitat del centre educatiu i del Departament d'Educacio, d'acord amb la normativa vigent.</p>
+
+<h2>10. Canvis a aquesta politica</h2>
+<p>Qualsevol canvi a aquesta politica de privacitat es publicara en aquesta mateixa pagina i al repositori del projecte. Si els canvis son significatius, es notificara als usuaris a traves de les notes de versio de l'extensio.</p>
+
+<h2>11. Contacte</h2>
+<p>Per a qualsevol consulta relacionada amb la privacitat d'aquesta extensio:</p>
+<ul>
+  <li>Obre una issue a <a href="https://github.com/aaronFortuno/esfera-helper/issues">GitHub</a></li>
+</ul>
+
+<footer>
+  <p>Esfer@ Helper v0.4.0 - Projecte de codi obert sota llicencia MIT</p>
+  <p>&copy; 2026 Aarón Fortuño</p>
+</footer>
+
+</body>
+</html>

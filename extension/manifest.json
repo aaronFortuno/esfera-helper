@@ -1,27 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Esfer@ Helper",
-  "version": "0.2.0",
-  "description": "Agilitza la introducció de qualificacions a Esfer@ capturant l'estructura i important dades des de Google Sheets.",
-  "permissions": [
-    "activeTab",
-    "sidePanel",
-    "storage"
-  ],
-  "host_permissions": [
-    "https://bfgh.aplicacions.ensenyament.gencat.cat/*"
-  ],
+  "version": "0.4.0",
+  "description": "Agilitza la introduccio de qualificacions a Esfer@ amb exportacio/importacio CSV i Google Sheets per a docents de Catalunya.",
+  "permissions": ["activeTab", "sidePanel", "storage", "identity"],
+  "host_permissions": ["https://bfgh.aplicacions.ensenyament.gencat.cat/*"],
   "background": {
     "service_worker": "background/service-worker.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://bfgh.aplicacions.ensenyament.gencat.cat/bfgh/avaluacio/*"
-      ],
-      "js": [
-        "content-scripts/scraper.js"
-      ],
+      "matches": ["https://bfgh.aplicacions.ensenyament.gencat.cat/bfgh/avaluacio/*"],
+      "js": ["content-scripts/scraper.js"],
       "run_at": "document_idle"
     }
   ],

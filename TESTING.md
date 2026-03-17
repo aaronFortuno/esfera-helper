@@ -10,6 +10,7 @@ Marca amb [x] els que passin correctament.
 3. Consola del navegador oberta (F12 > Console) per veure errors
 
 **IMPORTANT**: Despres de cada actualitzacio del codi, cal:
+
 1. Anar a `chrome://extensions/`
 2. Clicar la fletxa circular (reload) a l'extensio
 3. Recarregar la pagina d'Esfer@ (F5)
@@ -58,14 +59,18 @@ Marca amb [x] els que passin correctament.
 
 ---
 
-## TEST 5: Mapeig de qualificadors
+## TEST 5: Seleccio de materies i qualificadors
 
-- [ ] 5.1 Despres de capturar, apareix la seccio "1b. Qualificadors per materia"
-- [ ] 5.2 Cada materia te un selector amb 3 opcions: Assoliment, Valoracio, Totes
-- [ ] 5.3 El boto "Totes: Assoliment" canvia tots els selectors a "Assoliment"
-- [ ] 5.4 El boto "Totes: Valoracio" canvia tots a "Valoracio"
-- [ ] 5.5 Pots canviar individualment una materia (ex: DM a "Valoracio")
-- [ ] 5.6 Clicar "Desa la configuracio" mostra "Desat!" temporalment
+- [ ] 5.1 Despres de capturar, apareix la seccio "1b. Materies i qualificadors"
+- [ ] 5.2 Cada materia te un checkbox (marcat per defecte) i un selector de qualificadors
+- [ ] 5.3 El boto "Selecciona totes" marca tots els checkboxes
+- [ ] 5.4 El boto "Desmarca totes" desmarca tots els checkboxes
+- [ ] 5.5 El boto "Qualificadors: Assoliment" canvia tots els selectors a "Assoliment"
+- [ ] 5.6 El boto "Qualificadors: Valoracio" canvia tots a "Valoracio"
+- [ ] 5.7 Pots canviar individualment una materia (ex: DM a "Valoracio")
+- [ ] 5.8 Desmarcar una materia la mostra amb opacitat reduida i desactiva el selector
+- [ ] 5.9 Clicar "Desa la configuracio" mostra "Desat!" temporalment
+- [ ] 5.10 La seleccio de materies persisteix al tancar i reobrir el panell
 
 ---
 
@@ -83,6 +88,7 @@ Marca amb [x] els que passin correctament.
   - Materies amb "Totes": `AE|AN|AS|F|G|M|NA|P` (totes les opcions)
 - [ ] 6.8 Hi ha una columna per cada alumne de la llista
 - [ ] 6.9 Totes les cel-les de dades estan buides
+- [ ] 6.10 Si has desmarcat materies al pas 1b, el CSV NO les inclou
 
 ---
 
@@ -98,6 +104,7 @@ Marca amb [x] els que passin correctament.
 ## TEST 8: Importacio de CSV (el test mes important!)
 
 ### Preparacio
+
 1. Descarrega un CSV buit (Test 6)
 2. Obre'l a Google Sheets
 3. Per a un alumne concret, omple 5-10 camps amb valors valids:
@@ -106,6 +113,7 @@ Marca amb [x] els que passin correctament.
 4. Descarrega com a CSV (Fitxer > Descarrega > Valors separats per comes)
 
 ### Prova
+
 - [ ] 8.1 A Esfer@, obre el formulari de l'alumne que has omplert al CSV
 - [ ] 8.2 Al panell, clica "Carrega CSV amb dades"
 - [ ] 8.3 Selecciona el CSV descarregat
@@ -118,7 +126,9 @@ Marca amb [x] els que passin correctament.
 - [ ] 8.10 Prem "Desa" a Esfer@ - es desen correctament les qualificacions?
 
 ### Possible problema
+
 Si els selects NO canvien visualment pero el panell diu que ha funcionat:
+
 - Pot ser un problema amb la notificacio a AngularJS
 - Comprova la consola per errors
 - Reporta exactament que veus
@@ -154,18 +164,100 @@ Si els selects NO canvien visualment pero el panell diu que ha funcionat:
 
 ---
 
+## TEST 12: Google Sheets - Autenticacio
+
+**Prerequisit**: Cal haver configurat el client_id de Google Cloud Console a `sheets-api.js`.
+
+- [ ] 12.1 Captura l'estructura d'items (Test 4)
+- [ ] 12.2 Clica "Obre a Google Sheets"
+- [ ] 12.3 S'obre una finestra emergent de Google demanant permisos
+- [ ] 12.4 Autoritza l'acces (compte de Google amb Drive)
+- [ ] 12.5 La finestra emergent es tanca automaticament
+
+**Si falla**: Comprova que el client_id es correcte i que el redirect URI esta configurat a Google Cloud Console com `https://<extension-id>.chromiumapp.org/`.
+
+---
+
+## TEST 13: Google Sheets - Creacio de full
+
+- [ ] 13.1 Despres d'autoritzar, s'obre un nou Google Sheet en una pestanya
+- [ ] 13.2 El titol del Sheet es "Esfer@ Qualificacions DD/MM/YYYY"
+- [ ] 13.3 **Fila 1** (capcalera): Codi | Nom | Opcions | Alumne1 | Alumne2 | ... (fons verd, text blanc)
+- [ ] 13.4 **Fila 2** (IDs): #ID | | | RALC1 | RALC2 | ... (fons gris, text italic)
+- [ ] 13.5 Les materies (subjects) tenen fons verd clar i text en negreta
+- [ ] 13.6 Les columnes d'alumnes tenen desplegables (dropdown) amb les opcions correctes
+- [ ] 13.7 Les files 1 i 2 estan fixades (frozen) al fer scroll vertical
+- [ ] 13.8 Les columnes Codi, Nom, Opcions estan fixades al fer scroll horitzontal
+- [ ] 13.9 Si l'alumne actual tenia valors, apareixen a la columna corresponent
+- [ ] 13.10 El panell mostra "Full de calcul creat!" amb missatge d'exit
+
+---
+
+## TEST 14: Google Sheets - Importacio directa
+
+1. Crea un Sheet (Test 13)
+2. A Google Sheets, omple 5-10 camps per a un alumne usant els desplegables
+
+- [ ] 14.1 Apareix el boto "Importa des de Sheets" al panell
+- [ ] 14.2 Clica "Importa des de Sheets"
+- [ ] 14.3 El panell mostra "Dades importades des de Sheets!" amb nombre d'alumnes i items
+- [ ] 14.4 El banner CSV mostra les dades carregades
+- [ ] 14.5 L'auto-matching d'alumne funciona correctament
+- [ ] 14.6 Les dades omplertes al Sheet coincideixen amb les del preview
+- [ ] 14.7 El boto "Importa des de Sheets" persisteix al tancar i reobrir el panell
+
+---
+
+## TEST 15: Google Sheets - Gestio de sessio
+
+- [ ] 15.1 Despres de crear un Sheet, apareix "Tanca sessio Google" al footer
+- [ ] 15.2 Clica "Tanca sessio Google"
+- [ ] 15.3 El boto desapareix
+- [ ] 15.4 Al tornar a clicar "Obre a Google Sheets", demana autoritzacio de nou
+- [ ] 15.5 "Esborra totes les dades" tambe tanca la sessio de Google
+
+---
+
+## TEST 16: Google Sheets - Errors
+
+- [ ] 16.1 Si es cancel-la l'autenticacio, mostra "S'ha cancel·lat l'autenticacio amb Google"
+- [ ] 16.2 Si no hi ha estructura capturada, mostra alerta "Primer has de capturar l'estructura"
+- [ ] 16.3 Si el client_id no esta configurat, mostra missatge de configuracio pendent
+
+---
+
+## TEST 17: Filtre de materies (proteccio contra sobreescriptura)
+
+**Context**: El tutor veu totes les materies, pero no vol sobreescriure les que han omplert els especialistes (musica, angles, educacio fisica...).
+
+- [ ] 17.1 Desmarca 2-3 materies d'especialitat al pas 1b (ex: MUS, ANG, EF)
+- [ ] 17.2 Desa la configuracio
+- [ ] 17.3 **CSV**: Descarrega un CSV buit. Comprova que les materies desmarcades NO apareixen
+- [ ] 17.4 **Sheets**: Crea un Google Sheet. Comprova que les materies desmarcades NO apareixen
+- [ ] 17.5 **Importacio**: Carrega un CSV/Sheet amb dades. El preview mostra "X items exclosos (materies no seleccionades)"
+- [ ] 17.6 **Fill**: Omple el formulari. Nomes s'omplen les materies seleccionades, les desmarcades queden intactes
+- [ ] 17.7 Verifica a Esfer@ que les qualificacions de les materies desmarcades NO s'han modificat
+
+---
+
 ## Resum de resultats
 
-| Test | Resultat | Notes |
-|------|----------|-------|
-| 1. Connexio | | |
-| 2. Llista alumnes | | |
-| 3. Deteccio alumne | | |
-| 4. Captura estructura | | |
-| 5. Mapeig qualificadors | | |
-| 6. CSV buit | | |
-| 7. CSV amb valors | | |
-| 8. Importacio CSV | | |
-| 9. Matching alumne | | |
-| 10. Navegacio | | |
-| 11. Persistencia | | |
+| Test                        | Resultat | Notes |
+| --------------------------- | -------- | ----- |
+| 1. Connexio                 |          |       |
+| 2. Llista alumnes           |          |       |
+| 3. Deteccio alumne          |          |       |
+| 4. Captura estructura       |          |       |
+| 5. Materies i qualificadors |          |       |
+| 6. CSV buit                 |          |       |
+| 7. CSV amb valors           |          |       |
+| 8. Importacio CSV           |          |       |
+| 9. Matching alumne          |          |       |
+| 10. Navegacio               |          |       |
+| 11. Persistencia            |          |       |
+| 12. Sheets auth             |          |       |
+| 13. Sheets creacio          |          |       |
+| 14. Sheets importacio       |          |       |
+| 15. Sheets sessio           |          |       |
+| 16. Sheets errors           |          |       |
+| 17. Filtre materies         |          |       |

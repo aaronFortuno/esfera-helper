@@ -191,6 +191,16 @@ h2 {
   background: #1565c0;
 }
 
+.btn-danger {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
+.btn-danger:hover {
+  background: #ffcdd2;
+}
+
 .btn-block {
   display: block;
   width: 100%;
@@ -302,6 +312,20 @@ h2 {
   border-bottom: none;
 }
 
+.options-mapping-item.excluded {
+  opacity: 0.45;
+  background: #f9f9f9;
+}
+
+.options-mapping-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #2e8b57;
+}
+
 .options-mapping-item .subject-code {
   font-family: monospace;
   font-size: 11px;
@@ -328,22 +352,158 @@ h2 {
   min-width: 100px;
 }
 
-/* CSV loaded banner */
-.csv-banner {
-  background: #e3f2fd;
-  border-color: #90caf9;
-}
-
-/* Fill buttons group */
-.fill-buttons {
+/* Sheets buttons group */
+.sheets-buttons {
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
 }
 
-.fill-buttons .btn {
+.sheets-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.sheets-link {
+  color: #1565c0;
+  text-decoration: none;
+  font-size: 11px;
+}
+
+.sheets-link:hover {
+  text-decoration: underline;
+}
+
+/* Sheet selector */
+.sheet-selector {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.sheet-name-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+}
+
+.sheet-name-input:focus {
+  outline: none;
+  border-color: #2e8b57;
+}
+
+/* Export CSV group (secondary options below Sheets button) */
+.export-csv-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+/* Data loaded banner (unified CSV/Sheets) */
+.data-banner {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.data-banner-content {
   flex: 1;
+  min-width: 0;
+}
+
+.data-banner-content strong {
+  font-size: 12px;
+}
+
+.data-banner-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.data-banner-actions .btn {
   margin-bottom: 0;
+  padding: 4px 8px;
+  font-size: 10px;
+  width: auto;
+}
+
+/* Collapsible config section */
+details.action-group {
+  padding: 0;
+}
+
+details.action-group summary {
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  list-style: none;
+}
+
+details.action-group summary::-webkit-details-marker {
+  display: none;
+}
+
+details.action-group summary::before {
+  content: '\25B6';
+  font-size: 10px;
+  color: #999;
+  transition: transform 0.2s ease;
+}
+
+details[open].action-group summary::before {
+  transform: rotate(90deg);
+}
+
+details.action-group summary h2 {
+  margin-bottom: 0;
+}
+
+.section-summary {
+  font-size: 11px;
+  color: #999;
+  font-weight: normal;
+}
+
+.config-inner {
+  padding: 0 14px 14px;
+}
+
+/* Match info (in fill section) */
+.match-info {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #555;
+}
+
+.match-info strong {
+  color: #333;
+  font-size: 12px;
 }
 
 /* Progress indicator */
@@ -387,6 +547,22 @@ footer {
   font-size: 10px;
   color: #999;
   text-align: center;
+}
+
+.footer-separator {
+  margin: 0 6px;
+  color: #ccc;
+}
+
+.footer-link {
+  color: #999;
+  text-decoration: none;
+  font-size: 10px;
+}
+
+.footer-link:hover {
+  color: #2e8b57;
+  text-decoration: underline;
 }
 
 /* Scrollbar */
