@@ -28,6 +28,7 @@
     // Pantalla formulari
     subjectRows: 'tr[data-ng-repeat*="scope in vm.scope_subjects"]',
     childRows: 'div[data-ng-repeat*="area in scope.childs"]',
+    dimensionRows: 'div[data-ng-repeat*="dimension in area.childs"]',
 
     // Capcaleres per color (principal) + fallback per estructura
     subjectHeader: [
@@ -297,12 +298,42 @@
 
         const itemOptions = extractSelectOptions(itemDiv);
 
-        subject.children.push({
+        const item = {
           code: itemCode,
           name: itemName,
           type: 'item',
           options: itemOptions,
+          children: [],
+        };
+
+        // Dimensions (nivell 3): dimension in area.childs
+        const dimensionRows = childRow.querySelectorAll(SELECTORS.dimensionRows);
+        const seenDimCodes = new Set();
+
+        dimensionRows.forEach((dimRow) => {
+          const dimDivs = dimRow.querySelectorAll(':scope > div');
+          let dimCode = '';
+          let dimName = '';
+
+          if (dimDivs.length >= 2) {
+            dimCode = dimDivs[0].textContent.trim();
+            dimName = dimDivs[1].textContent.trim();
+          }
+
+          if (dimCode && seenDimCodes.has(dimCode)) return;
+          if (dimCode) seenDimCodes.add(dimCode);
+
+          const dimOptions = extractSelectOptions(dimRow);
+
+          item.children.push({
+            code: dimCode,
+            name: dimName,
+            type: 'dimension',
+            options: dimOptions,
+          });
         });
+
+        subject.children.push(item);
       });
 
       structure.push(subject);
@@ -417,6 +448,14 @@
       subject.children.forEach((child) => {
         const childValue = readSelectValueByCode(child.code, 'item');
         values.push({ code: child.code, value: childValue });
+
+        // Dimensions (nivell 3)
+        if (child.children && child.children.length > 0) {
+          child.children.forEach((dim) => {
+            const dimValue = readSelectValueByCode(dim.code, 'item');
+            values.push({ code: dim.code, value: dimValue });
+          });
+        }
       });
     });
 
@@ -553,10 +592,23 @@
         flat.push({
           code: child.code,
           name: child.name,
-          type: 'item',
+          type: child.type,
           options: child.options,
           level: 1,
         });
+
+        // Dimensions (nivell 3)
+        if (child.children && child.children.length > 0) {
+          child.children.forEach((dim) => {
+            flat.push({
+              code: dim.code,
+              name: dim.name,
+              type: dim.type,
+              options: dim.options,
+              level: 2,
+            });
+          });
+        }
       });
     });
 

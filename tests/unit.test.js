@@ -813,3 +813,100 @@ describe('getSelectedItems', () => {
     assert.equal(result[1].code, 'CAT01');
   });
 });
+
+// =========================================================================
+// TESTS AMB ESTRUCTURA DE 3 NIVELLS (subject → item/area → dimension)
+// =========================================================================
+
+describe('getSelectedItems amb 3 nivells', () => {
+  // Llista plana tal com la retorna getFlatItemList() amb dimensions
+  const threeLevel = [
+    { code: 'EA', name: 'Educacio Artistica', type: 'subject', options: [] },
+    { code: 'EVP', name: 'Educacio Visual i Plastica', type: 'item', options: [{ value: 'NA' }] },
+    { code: 'EVP-1', name: 'Valora produccions', type: 'dimension', options: [{ value: 'NA' }] },
+    { code: 'EVP-2', name: 'Aplica tecniques', type: 'dimension', options: [{ value: 'AS' }] },
+    { code: 'VGEVP', name: 'Qualificacio global EVP', type: 'dimension', options: [{ value: 'AE' }] },
+    { code: 'EM', name: 'Educacio Musical', type: 'item', options: [{ value: 'NA' }] },
+    { code: 'EM-1', name: 'Canta individualment', type: 'dimension', options: [{ value: 'NA' }] },
+    { code: 'EM-2', name: 'Utilitza instruments', type: 'dimension', options: [{ value: 'AS' }] },
+    { code: 'MAT', name: 'Matematiques', type: 'subject', options: [] },
+    { code: 'MAT01', name: 'Algebra', type: 'item', options: [{ value: 'NA' }] },
+  ];
+
+  it('inclou totes les dimensions quan la materia esta seleccionada', () => {
+    const selected = { EA: true, MAT: true };
+    const result = getSelectedItems(threeLevel, selected);
+    assert.equal(result.length, threeLevel.length);
+  });
+
+  it('exclou totes les dimensions quan la materia es desmarca', () => {
+    const selected = { EA: false, MAT: true };
+    const result = getSelectedItems(threeLevel, selected);
+    assert.equal(result.length, 2); // MAT + MAT01
+    const codes = result.map((i) => i.code);
+    assert.deepEqual(codes, ['MAT', 'MAT01']);
+  });
+
+  it('les dimensions pertanyen al subject correcte en la llista plana', () => {
+    const selected = { EA: true, MAT: false };
+    const result = getSelectedItems(threeLevel, selected);
+    assert.equal(result.length, 8); // EA + EVP + EVP-1..VGEVP + EM + EM-1..EM-2
+    assert.ok(result.find((i) => i.code === 'EVP-1'));
+    assert.ok(result.find((i) => i.code === 'EM-2'));
+    assert.ok(!result.find((i) => i.code === 'MAT'));
+  });
+});
+
+describe('buildSheetData amb 3 nivells', () => {
+  const threeLevelItems = [
+    { code: 'EA', name: 'Educacio Artistica', type: 'subject', options: [{ value: 'NA' }, { value: 'AE' }] },
+    { code: 'EVP', name: 'Educacio Visual', type: 'item', options: [{ value: 'NA' }, { value: 'AE' }] },
+    { code: 'EVP-1', name: 'Valora produccions', type: 'dimension', options: [{ value: 'NA' }, { value: 'AE' }] },
+    { code: 'EVP-2', name: 'Aplica tecniques', type: 'dimension', options: [{ value: 'NA' }, { value: 'AE' }] },
+  ];
+
+  const testStudents = [
+    { nom: 'Garcia, Maria', idRalc: 'RALC001', id: '1' },
+  ];
+
+  const simpleFilter = (item) => item.options.map((o) => o.value);
+
+  it('genera files per subjects, items i dimensions', () => {
+    const data = buildSheetData({
+      items: threeLevelItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    // 2 files capcalera + 4 files de dades
+    assert.equal(data.length, 6);
+    assert.equal(data[2][0], 'EA');       // subject
+    assert.equal(data[3][0], 'EVP');      // item (area)
+    assert.equal(data[4][0], 'EVP-1');    // dimension
+    assert.equal(data[5][0], 'EVP-2');    // dimension
+  });
+
+  it('les dimensions tenen les seves opcions correctes', () => {
+    const data = buildSheetData({
+      items: threeLevelItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+    });
+
+    assert.equal(data[4][2], 'NA|AE');  // opcions de EVP-1
+    assert.equal(data[5][2], 'NA|AE');  // opcions de EVP-2
+  });
+
+  it('inclou valors actuals per dimensions', () => {
+    const data = buildSheetData({
+      items: threeLevelItems,
+      students: testStudents,
+      getFilteredOptions: simpleFilter,
+      currentValues: { EA: 'AE', EVP: 'NA', 'EVP-1': 'AE', 'EVP-2': 'NA' },
+      currentStudent: { nom: 'Garcia, Maria', idRalc: 'RALC001' },
+    });
+
+    assert.equal(data[4][3], 'AE');  // EVP-1 per Garcia
+    assert.equal(data[5][3], 'NA');  // EVP-2 per Garcia
+  });
+});
