@@ -377,6 +377,32 @@ h2 {
   text-decoration: underline;
 }
 
+/* Sheet selector */
+.sheet-selector {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.sheet-name-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+}
+
+.sheet-name-input:focus {
+  outline: none;
+  border-color: #2e8b57;
+}
+
 /* Export CSV group (secondary options below Sheets button) */
 .export-csv-group {
   margin-top: 8px;

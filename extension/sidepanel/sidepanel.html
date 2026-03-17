@@ -101,6 +101,12 @@
       <!-- Graella -->
       <div id="export-section" class="action-group hidden">
         <h2>Graella</h2>
+
+        <!-- Selector de full existent -->
+        <div id="sheet-selector-section" class="hidden">
+          <select id="sheet-selector" class="sheet-selector"></select>
+        </div>
+
         <div class="sheets-buttons">
           <button id="btn-export-sheets" class="btn btn-primary" style="flex:1">
             Crea full a Google Sheets
@@ -110,16 +116,25 @@
           </button>
         </div>
         <div class="sheets-secondary">
-          <button id="btn-new-sheet" class="btn btn-secondary btn-small hidden">
-            Crea full nou
-          </button>
           <button id="btn-delete-sheet" class="btn btn-danger btn-small hidden">
             Elimina full
           </button>
-          <a id="sheets-link" href="#" target="_blank" class="sheets-link hidden">
-            Obre el full
-          </a>
         </div>
+
+        <!-- Nom personalitzat per al nou full -->
+        <div id="new-sheet-name-section" class="hidden">
+          <input type="text" id="new-sheet-name" class="sheet-name-input" 
+            placeholder="Nom del full (ex: 6eA, Musica 3rB...)">
+          <div class="sheets-buttons" style="margin-top:6px">
+            <button id="btn-create-sheet-confirm" class="btn btn-primary" style="flex:1">
+              Crea el full
+            </button>
+            <button id="btn-create-sheet-cancel" class="btn btn-secondary" style="flex:1">
+              Cancel·la
+            </button>
+          </div>
+        </div>
+
         <div id="sheets-status" class="result-box hidden"></div>
         <div class="export-csv-group">
           <button id="btn-export-csv" class="btn btn-secondary btn-block">

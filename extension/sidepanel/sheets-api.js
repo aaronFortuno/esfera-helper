@@ -187,12 +187,13 @@ const SheetsAPI = (function () {
     } = params;
 
     const title =
+      params.title ||
       'Esfer@ Qualificacions ' +
-      new Date().toLocaleDateString('ca-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
+        new Date().toLocaleDateString('ca-ES', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
 
     // ---- Construim les dades en format 2D ----
     const sheetData = buildSheetData({

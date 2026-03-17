@@ -44,7 +44,8 @@
   let loadedCSVData = null; // Persistent entre alumnes!
   let optionsMapping = {};
   let selectedSubjects = {}; // {code: true/false} - materies seleccionades per exportar/importar
-  let lastSpreadsheetId = null; // ID del darrer spreadsheet creat
+  let savedSheets = []; // [{id, name, createdAt}] - fulls creats
+  let currentSheetIndex = -1; // index del full seleccionat a savedSheets
   let lastStudentId = ''; // Per detectar canvi d'alumne
 
   // =========================================================================
@@ -72,11 +73,15 @@
   const btnCsvClear = $('#btn-csv-clear');
   const btnCsvReload = $('#btn-csv-reload');
   const btnExportSheets = $('#btn-export-sheets');
-  const btnNewSheet = $('#btn-new-sheet');
   const btnDeleteSheet = $('#btn-delete-sheet');
   const btnImportSheets = $('#btn-import-sheets');
   const sheetsStatus = $('#sheets-status');
-  const sheetsLink = $('#sheets-link');
+  const sheetSelector = $('#sheet-selector');
+  const sheetSelectorSection = $('#sheet-selector-section');
+  const newSheetNameSection = $('#new-sheet-name-section');
+  const newSheetNameInput = $('#new-sheet-name');
+  const btnCreateSheetConfirm = $('#btn-create-sheet-confirm');
+  const btnCreateSheetCancel = $('#btn-create-sheet-cancel');
   const btnGoogleLogout = $('#btn-google-logout');
 
   const structureResult = $('#structure-result');
@@ -219,7 +224,7 @@
       'optionsMapping',
       'selectedSubjects',
       'loadedCSVData',
-      'lastSpreadsheetId',
+      'savedSheets',
     ]);
     if (stored.capturedStudents) {
       capturedStudents = stored.capturedStudents;
@@ -238,8 +243,9 @@
     if (stored.loadedCSVData) {
       loadedCSVData = stored.loadedCSVData;
     }
-    if (stored.lastSpreadsheetId) {
-      lastSpreadsheetId = stored.lastSpreadsheetId;
+    if (stored.savedSheets && stored.savedSheets.length > 0) {
+      savedSheets = stored.savedSheets;
+      currentSheetIndex = savedSheets.length - 1;
       updateSheetsUI();
     }
 
@@ -254,7 +260,7 @@
   function updateCSVBanner() {
     if (loadedCSVData) {
       csvLoadedBanner.classList.remove('hidden');
-      const source = lastSpreadsheetId ? 'Sheets' : 'CSV';
+      const source = savedSheets.length > 0 ? 'Sheets' : 'CSV';
       csvLoadedText.textContent =
         source +
         ': ' +
@@ -707,30 +713,50 @@
   // =========================================================================
 
   /**
-   * Obre el spreadsheet existent o en crea un de nou.
-   * @param {boolean} forceNew - Si true, crea un sheet nou ignorant l'existent.
+   * Retorna l'ID del full seleccionat al dropdown (o null).
    */
-  async function exportToSheets(forceNew) {
+  function getSelectedSheetId() {
+    if (currentSheetIndex >= 0 && currentSheetIndex < savedSheets.length) {
+      return savedSheets[currentSheetIndex].id;
+    }
+    return null;
+  }
+
+  /**
+   * Gestiona el clic al boto principal de Sheets.
+   * Si hi ha fulls guardats, obre el seleccionat.
+   * Si no n'hi ha, inicia el flux de creacio.
+   */
+  function handleSheetsButton() {
     if (!capturedStructure || capturedStructure.length === 0) {
       alert("Primer has de capturar l'estructura d'items.");
       return;
     }
 
-    // Si ja tenim un sheet i no forcem creacio nova, simplement l'obrim
-    if (lastSpreadsheetId && !forceNew) {
-      const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
+    const sheetId = getSelectedSheetId();
+    if (sheetId) {
+      // Obrim el full seleccionat
+      const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit';
       chrome.tabs.create({ url: sheetUrl, active: false });
-      sheetsStatus.className = 'result-box info';
-      sheetsStatus.innerHTML =
-        "S'ha obert el full de calcul existent en una nova pestanya." +
-        '<br><a href="' +
-        sheetUrl +
-        '" target="_blank" style="font-size:11px;color:#1565c0">' +
-        'Obre el full</a>';
-      sheetsStatus.classList.remove('hidden');
-      return;
+    } else {
+      // Mostrem el formulari de creacio
+      showNewSheetForm();
     }
+  }
 
+  /**
+   * Mostra el formulari per crear un full nou amb nom personalitzat.
+   */
+  function showNewSheetForm() {
+    newSheetNameInput.value = '';
+    newSheetNameSection.classList.remove('hidden');
+    newSheetNameInput.focus();
+  }
+
+  /**
+   * Crea un full de calcul nou amb el nom donat.
+   */
+  async function createNewSheet() {
     if (!capturedStudents) {
       const stored = await chrome.storage.local.get(['capturedStudents']);
       capturedStudents = stored.capturedStudents || [];
@@ -753,14 +779,25 @@
       if (!consent) return;
     }
 
+    // Construim el titol
+    const customName = newSheetNameInput.value.trim();
+    const datePart = new Date().toLocaleDateString('ca-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const title = customName
+      ? 'Esfer@ ' + customName + ' (' + datePart + ')'
+      : 'Esfer@ Qualificacions ' + datePart;
+    const displayName = customName || 'Qualificacions ' + datePart;
+
+    newSheetNameSection.classList.add('hidden');
     btnExportSheets.disabled = true;
-    btnNewSheet.disabled = true;
     btnExportSheets.textContent = 'Connectant amb Google...';
     setStatus('Creant full de calcul...', 'working');
     sheetsStatus.classList.add('hidden');
 
     try {
-      // Llegim valors actuals si estem al formulari
       let currentValues = {};
       let currentStudent = null;
 
@@ -789,26 +826,29 @@
         getFilteredOptions: getFilteredOptions,
         currentValues: currentValues,
         currentStudent: currentStudent,
+        title: title,
       });
 
-      // Guardem el spreadsheetId per poder-lo llegir despres
-      lastSpreadsheetId = result.spreadsheetId;
-      await chrome.storage.local.set({ lastSpreadsheetId });
+      // Afegim el full a la llista
+      savedSheets.push({
+        id: result.spreadsheetId,
+        name: displayName,
+        createdAt: new Date().toISOString(),
+      });
+      currentSheetIndex = savedSheets.length - 1;
+      await chrome.storage.local.set({ savedSheets });
 
-      // Obrim el spreadsheet en una nova pestanya
+      // Obrim el spreadsheet
       chrome.tabs.create({ url: result.spreadsheetUrl, active: false });
 
       updateSheetsUI();
 
       sheetsStatus.className = 'result-box success';
       sheetsStatus.innerHTML =
-        '<strong>Full de calcul creat!</strong>' +
-        "S'ha obert en una nova pestanya. Quan hagis omplert les qualificacions, " +
-        'prem "Importa des de Sheets" per recuperar les dades.' +
-        '<br><a href="' +
-        result.spreadsheetUrl +
-        '" target="_blank" style="font-size:11px;color:#1565c0">' +
-        'Obre el full</a>';
+        '<strong>Full "' +
+        escapeHtml(displayName) +
+        '" creat!</strong>' +
+        "S'ha obert en una nova pestanya.";
       sheetsStatus.classList.remove('hidden');
 
       setStatus('Connectat a Esfer@', 'connected');
@@ -822,11 +862,6 @@
         e.message.includes('user')
       ) {
         sheetsStatus.textContent = "S'ha cancel·lat l'autenticacio amb Google.";
-      } else if (e.message.includes('YOUR_CLIENT_ID')) {
-        sheetsStatus.innerHTML =
-          '<strong>Configuracio pendent</strong>' +
-          "Cal configurar el client_id de Google Cloud Console a l'extensio. " +
-          'Consulta la documentacio per als passos.';
       } else {
         sheetsStatus.textContent = 'Error: ' + e.message;
       }
@@ -835,34 +870,42 @@
     }
 
     btnExportSheets.disabled = false;
-    btnNewSheet.disabled = false;
     updateSheetsButtonLabel();
   }
 
   /**
-   * Actualitza la UI dels botons de Sheets segons si tenim un sheet associat.
+   * Actualitza tota la UI de Sheets (selector, botons, labels).
    */
   function updateSheetsUI() {
-    updateSheetsButtonLabel();
-    if (lastSpreadsheetId) {
+    // Selector de fulls
+    if (savedSheets.length > 0) {
+      sheetSelector.innerHTML = savedSheets
+        .map(
+          (s, i) =>
+            '<option value="' +
+            i +
+            '"' +
+            (i === currentSheetIndex ? ' selected' : '') +
+            '>' +
+            escapeHtml(s.name) +
+            '</option>'
+        )
+        .join('');
+      sheetSelectorSection.classList.remove('hidden');
       btnImportSheets.classList.remove('hidden');
-      btnNewSheet.classList.remove('hidden');
       btnDeleteSheet.classList.remove('hidden');
       btnGoogleLogout.classList.remove('hidden');
-      sheetsLink.href = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
-      sheetsLink.classList.remove('hidden');
     } else {
+      sheetSelectorSection.classList.add('hidden');
       btnImportSheets.classList.add('hidden');
-      btnNewSheet.classList.add('hidden');
       btnDeleteSheet.classList.add('hidden');
-      sheetsLink.classList.add('hidden');
     }
+    updateSheetsButtonLabel();
   }
 
   function updateSheetsButtonLabel() {
-    btnExportSheets.textContent = lastSpreadsheetId
-      ? 'Obre el full de calcul'
-      : 'Crea full a Google Sheets';
+    btnExportSheets.textContent =
+      savedSheets.length > 0 ? 'Obre el full de calcul' : 'Crea full a Google Sheets';
   }
 
   /**
@@ -886,18 +929,20 @@
   // =========================================================================
 
   async function importFromSheets() {
-    if (!lastSpreadsheetId) {
-      alert('No hi ha cap full de calcul associat. Primer exporta a Google Sheets.');
+    const sheetId = getSelectedSheetId();
+    if (!sheetId) {
+      alert('No hi ha cap full de calcul seleccionat.');
       return;
     }
 
+    const sheetName = savedSheets[currentSheetIndex].name;
     btnImportSheets.disabled = true;
     btnImportSheets.textContent = 'Llegint dades...';
     setStatus('Llegint des de Google Sheets...', 'working');
     sheetsStatus.classList.add('hidden');
 
     try {
-      const data = await SheetsAPI.readSpreadsheet(lastSpreadsheetId);
+      const data = await SheetsAPI.readSpreadsheet(sheetId);
 
       loadedCSVData = data;
       await chrome.storage.local.set({ loadedCSVData });
@@ -905,18 +950,15 @@
       updateCSVBanner();
       await autoMatchCurrentStudent();
 
-      const sheetUrl = 'https://docs.google.com/spreadsheets/d/' + lastSpreadsheetId + '/edit';
       sheetsStatus.className = 'result-box success';
       sheetsStatus.innerHTML =
-        '<strong>Dades importades des de Sheets!</strong>' +
+        '<strong>Dades importades de "' +
+        escapeHtml(sheetName) +
+        '"</strong>' +
         data.studentNames.length +
         ' alumnes, ' +
         data.items.length +
-        ' items llegits.' +
-        '<br><a href="' +
-        sheetUrl +
-        '" target="_blank" style="font-size:11px;color:#1565c0">' +
-        'Obre el full</a>';
+        ' items llegits.';
       sheetsStatus.classList.remove('hidden');
 
       setStatus('Connectat a Esfer@', 'connected');
@@ -938,12 +980,15 @@
   // =========================================================================
 
   async function deleteCurrentSheet() {
-    if (!lastSpreadsheetId) return;
+    const sheetId = getSelectedSheetId();
+    if (!sheetId) return;
 
+    const sheetName = savedSheets[currentSheetIndex].name;
     const consent = confirm(
-      'Segur que vols eliminar el full de calcul de Google Drive?\n\n' +
-        "Aquesta accio es irreversible. El full s'eliminara permanentment " +
-        'del teu Google Drive.'
+      'Segur que vols eliminar "' +
+        sheetName +
+        '" de Google Drive?\n\n' +
+        'Aquesta accio es irreversible.'
     );
     if (!consent) return;
 
@@ -952,15 +997,17 @@
     setStatus('Eliminant full de calcul...', 'working');
 
     try {
-      await SheetsAPI.deleteSpreadsheet(lastSpreadsheetId);
+      await SheetsAPI.deleteSpreadsheet(sheetId);
+
+      // Treiem de la llista
+      savedSheets.splice(currentSheetIndex, 1);
+      currentSheetIndex = savedSheets.length > 0 ? savedSheets.length - 1 : -1;
+      await chrome.storage.local.set({ savedSheets });
+      updateSheetsUI();
 
       sheetsStatus.className = 'result-box success';
-      sheetsStatus.textContent = "El full de calcul s'ha eliminat correctament.";
+      sheetsStatus.textContent = '"' + sheetName + '" eliminat.';
       sheetsStatus.classList.remove('hidden');
-
-      lastSpreadsheetId = null;
-      await chrome.storage.local.remove(['lastSpreadsheetId']);
-      updateSheetsUI();
 
       setStatus('Connectat a Esfer@', 'connected');
     } catch (e) {
@@ -972,7 +1019,7 @@
     }
 
     btnDeleteSheet.disabled = false;
-    btnDeleteSheet.textContent = 'Elimina el full';
+    btnDeleteSheet.textContent = 'Elimina full';
   }
 
   // =========================================================================
@@ -1352,8 +1399,16 @@
   // =========================================================================
 
   btnScrapeStructure.addEventListener('click', scrapeStructure);
-  btnExportSheets.addEventListener('click', () => exportToSheets(false));
-  btnNewSheet.addEventListener('click', () => exportToSheets(true));
+  btnExportSheets.addEventListener('click', handleSheetsButton);
+  btnCreateSheetConfirm.addEventListener('click', createNewSheet);
+  btnCreateSheetCancel.addEventListener('click', () => newSheetNameSection.classList.add('hidden'));
+  newSheetNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') createNewSheet();
+    if (e.key === 'Escape') newSheetNameSection.classList.add('hidden');
+  });
+  sheetSelector.addEventListener('change', (e) => {
+    currentSheetIndex = parseInt(e.target.value, 10);
+  });
   btnDeleteSheet.addEventListener('click', deleteCurrentSheet);
   btnImportSheets.addEventListener('click', importFromSheets);
   btnExportCSV.addEventListener('click', generateCSV(false));
@@ -1383,19 +1438,12 @@
   btnGoogleLogout.addEventListener('click', async (e) => {
     e.preventDefault();
     await SheetsAPI.revokeToken();
-    lastSpreadsheetId = null;
-    await chrome.storage.local.remove([
-      'lastSpreadsheetId',
-      'sheetsAccessToken',
-      'sheetsTokenExpiry',
-    ]);
+    savedSheets = [];
+    currentSheetIndex = -1;
+    await chrome.storage.local.remove(['savedSheets', 'sheetsAccessToken', 'sheetsTokenExpiry']);
     btnGoogleLogout.classList.add('hidden');
-    btnImportSheets.classList.add('hidden');
-    btnNewSheet.classList.add('hidden');
-    btnDeleteSheet.classList.add('hidden');
-    sheetsLink.classList.add('hidden');
     sheetsStatus.classList.add('hidden');
-    updateSheetsButtonLabel();
+    updateSheetsUI();
   });
 
   // Esborrat total de dades (RGPD - Dret de supressio)
@@ -1426,7 +1474,8 @@
       loadedCSVData = null;
       optionsMapping = {};
       selectedSubjects = {};
-      lastSpreadsheetId = null;
+      savedSheets = [];
+      currentSheetIndex = -1;
       lastStudentId = '';
       lastDetectedScreen = '';
 
@@ -1438,12 +1487,9 @@
       optionsSection.classList.add('hidden');
       exportSection.classList.add('hidden');
       sheetsStatus.classList.add('hidden');
+      newSheetNameSection.classList.add('hidden');
       btnGoogleLogout.classList.add('hidden');
-      btnImportSheets.classList.add('hidden');
-      btnNewSheet.classList.add('hidden');
-      btnDeleteSheet.classList.add('hidden');
-      sheetsLink.classList.add('hidden');
-      updateSheetsButtonLabel();
+      updateSheetsUI();
 
       alert('Totes les dades han estat esborrades.');
     });
