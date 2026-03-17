@@ -93,6 +93,36 @@
   const csvLoadedBanner = $('#csv-loaded-banner');
   const csvLoadedText = $('#csv-loaded-text');
 
+  // Inline confirms & toast
+  const toastEl = $('#toast');
+  const footerConfirm = $('#footer-confirm');
+  const deleteSheetConfirm = $('#delete-sheet-confirm');
+  const oauthConsent = $('#oauth-consent');
+
+  // =========================================================================
+  // TOAST & INLINE NOTIFICATIONS
+  // =========================================================================
+
+  let toastTimeout = null;
+
+  /**
+   * Mostra un toast temporal a la part inferior.
+   * @param {string} message - Text del toast
+   * @param {'success'|'error'|''} type - Tipus visual
+   * @param {number} duration - Durada en ms (per defecte 2500)
+   */
+  function showToast(message, type = '', duration = 2500) {
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastEl.textContent = message;
+    toastEl.className = 'toast' + (type ? ' toast-' + type : '');
+    // Force reflow per reiniciar l'animacio
+    void toastEl.offsetWidth;
+    toastEl.classList.add('visible');
+    toastTimeout = setTimeout(() => {
+      toastEl.classList.remove('visible');
+    }, duration);
+  }
+
   // =========================================================================
   // SCREEN MANAGEMENT
   // =========================================================================
@@ -602,7 +632,7 @@
   function generateCSV(includeCurrentValues) {
     return async function () {
       if (!capturedStructure || capturedStructure.length === 0) {
-        alert("Primer has de capturar l'estructura d'items.");
+        showToast("Primer captura l'estructura d'items", 'error');
         return;
       }
 
@@ -729,7 +759,7 @@
    */
   function handleSheetsButton() {
     if (!capturedStructure || capturedStructure.length === 0) {
-      alert("Primer has de capturar l'estructura d'items.");
+      showToast("Primer captura l'estructura d'items", 'error');
       return;
     }
 
@@ -754,6 +784,36 @@
   }
 
   /**
+   * Mostra el panell de consentiment OAuth inline i retorna una Promise
+   * que es resol amb true (acceptat) o false (cancel·lat).
+   */
+  function showOAuthConsent() {
+    return new Promise((resolve) => {
+      oauthConsent.classList.remove('hidden');
+      newSheetNameSection.classList.add('hidden');
+
+      function cleanup() {
+        oauthConsent.classList.add('hidden');
+        $('#btn-oauth-accept').removeEventListener('click', onAccept);
+        $('#btn-oauth-cancel').removeEventListener('click', onCancel);
+      }
+
+      function onAccept() {
+        cleanup();
+        resolve(true);
+      }
+
+      function onCancel() {
+        cleanup();
+        resolve(false);
+      }
+
+      $('#btn-oauth-accept').addEventListener('click', onAccept);
+      $('#btn-oauth-cancel').addEventListener('click', onCancel);
+    });
+  }
+
+  /**
    * Crea un full de calcul nou amb el nom donat.
    */
   async function createNewSheet() {
@@ -762,20 +822,10 @@
       capturedStudents = stored.capturedStudents || [];
     }
 
-    // Si no tenim sessio, informem l'usuari abans de demanar autoritzacio
+    // Si no tenim sessio, mostrem info de permisos inline
     const isAuth = await SheetsAPI.isAuthenticated();
     if (!isAuth) {
-      const consent = confirm(
-        'Per crear un full de calcul, Google et demanara permis per:\n\n' +
-          '- Crear fulls de calcul al teu Drive\n' +
-          '- Llegir els fulls creats per aquesta extensio\n' +
-          '- Eliminar els fulls creats per aquesta extensio\n\n' +
-          "L'extensio NOMES accedeix als fulls que ella mateixa crea. " +
-          'No pot veure ni modificar cap altre fitxer del teu Drive.\n\n' +
-          'Es codi obert i auditable: github.com/aaronFortuno/esfera-helper\n\n' +
-          'Aixo NO es obligatori. Si prefereixes, pots usar el CSV manualment.\n\n' +
-          'Vols continuar?'
-      );
+      const consent = await showOAuthConsent();
       if (!consent) return;
     }
 
@@ -931,7 +981,7 @@
   async function importFromSheets() {
     const sheetId = getSelectedSheetId();
     if (!sheetId) {
-      alert('No hi ha cap full de calcul seleccionat.');
+      showToast('No hi ha cap full seleccionat', 'error');
       return;
     }
 
@@ -979,17 +1029,42 @@
   // GOOGLE SHEETS DELETE
   // =========================================================================
 
+  /**
+   * Mostra confirmacio inline per eliminar full i retorna Promise<boolean>.
+   */
+  function confirmDeleteSheet(sheetName) {
+    return new Promise((resolve) => {
+      const confirmText = $('#delete-sheet-confirm-text');
+      confirmText.textContent = 'Eliminar "' + sheetName + '" de Google Drive?';
+      deleteSheetConfirm.classList.remove('hidden');
+
+      function cleanup() {
+        deleteSheetConfirm.classList.add('hidden');
+        $('#btn-delete-sheet-yes').removeEventListener('click', onYes);
+        $('#btn-delete-sheet-no').removeEventListener('click', onNo);
+      }
+
+      function onYes() {
+        cleanup();
+        resolve(true);
+      }
+
+      function onNo() {
+        cleanup();
+        resolve(false);
+      }
+
+      $('#btn-delete-sheet-yes').addEventListener('click', onYes);
+      $('#btn-delete-sheet-no').addEventListener('click', onNo);
+    });
+  }
+
   async function deleteCurrentSheet() {
     const sheetId = getSelectedSheetId();
     if (!sheetId) return;
 
     const sheetName = savedSheets[currentSheetIndex].name;
-    const consent = confirm(
-      'Segur que vols eliminar "' +
-        sheetName +
-        '" de Google Drive?\n\n' +
-        'Aquesta accio es irreversible.'
-    );
+    const consent = await confirmDeleteSheet(sheetName);
     if (!consent) return;
 
     btnDeleteSheet.disabled = true;
@@ -1040,7 +1115,7 @@
       loadedCSVData = parseCSV(csvText);
 
       if (!loadedCSVData) {
-        alert('Error llegint el CSV. Comprova el format.');
+        showToast('Error llegint el CSV. Comprova el format.', 'error', 3500);
         return;
       }
 
@@ -1449,51 +1524,52 @@
   // Esborrat total de dades (RGPD - Dret de supressio)
   const btnClearAllData = $('#btn-clear-all-data');
   if (btnClearAllData) {
-    btnClearAllData.addEventListener('click', async (e) => {
+    btnClearAllData.addEventListener('click', (e) => {
       e.preventDefault();
-      const confirmed = confirm(
-        'Segur que vols esborrar TOTES les dades emmagatzemades?\n\n' +
-          'Aixo inclou:\n' +
-          "- Estructura d'items capturada\n" +
-          "- Llista d'alumnes\n" +
-          '- Configuracio de qualificadors\n' +
-          '- CSV carregat\n\n' +
-          'Aquesta accio no es pot desfer.'
-      );
-      if (!confirmed) return;
-
-      // Revokem token de Google si existeix
-      await SheetsAPI.revokeToken();
-
-      // Esborrem tot de storage
-      await chrome.storage.local.clear();
-
-      // Resetegem l'estat en memoria
-      capturedStructure = null;
-      capturedStudents = null;
-      loadedCSVData = null;
-      optionsMapping = {};
-      selectedSubjects = {};
-      savedSheets = [];
-      currentSheetIndex = -1;
-      lastStudentId = '';
-      lastDetectedScreen = '';
-
-      // Actualitzem la UI
-      updateCSVBanner();
-      importPreview.classList.add('hidden');
-      fillResult.classList.add('hidden');
-      structureResult.classList.add('hidden');
-      optionsSection.classList.add('hidden');
-      exportSection.classList.add('hidden');
-      sheetsStatus.classList.add('hidden');
-      newSheetNameSection.classList.add('hidden');
-      btnGoogleLogout.classList.add('hidden');
-      updateSheetsUI();
-
-      alert('Totes les dades han estat esborrades.');
+      // Mostrem la confirmacio inline al footer
+      footerConfirm.classList.remove('hidden');
     });
   }
+
+  // Botons de la confirmacio inline d'esborrat
+  $('#btn-clear-confirm-yes').addEventListener('click', async () => {
+    footerConfirm.classList.add('hidden');
+
+    // Revokem token de Google si existeix
+    await SheetsAPI.revokeToken();
+
+    // Esborrem tot de storage
+    await chrome.storage.local.clear();
+
+    // Resetegem l'estat en memoria
+    capturedStructure = null;
+    capturedStudents = null;
+    loadedCSVData = null;
+    optionsMapping = {};
+    selectedSubjects = {};
+    savedSheets = [];
+    currentSheetIndex = -1;
+    lastStudentId = '';
+    lastDetectedScreen = '';
+
+    // Actualitzem la UI
+    updateCSVBanner();
+    importPreview.classList.add('hidden');
+    fillResult.classList.add('hidden');
+    structureResult.classList.add('hidden');
+    optionsSection.classList.add('hidden');
+    exportSection.classList.add('hidden');
+    sheetsStatus.classList.add('hidden');
+    newSheetNameSection.classList.add('hidden');
+    btnGoogleLogout.classList.add('hidden');
+    updateSheetsUI();
+
+    showToast('Totes les dades esborrades', 'success');
+  });
+
+  $('#btn-clear-confirm-no').addEventListener('click', () => {
+    footerConfirm.classList.add('hidden');
+  });
 
   // =========================================================================
   // INITIALIZATION

@@ -121,6 +121,33 @@
           </button>
         </div>
 
+        <!-- Confirmacio inline per eliminar full -->
+        <div id="delete-sheet-confirm" class="inline-confirm hidden">
+          <p id="delete-sheet-confirm-text">Segur que vols eliminar aquest full?</p>
+          <div class="inline-confirm-actions">
+            <button id="btn-delete-sheet-yes" class="btn btn-danger">Elimina</button>
+            <button id="btn-delete-sheet-no" class="btn btn-secondary">Cancel·la</button>
+          </div>
+        </div>
+
+        <!-- Consentiment OAuth inline (substitueix confirm dialog) -->
+        <div id="oauth-consent" class="oauth-consent-info hidden">
+          <strong>Permisos de Google</strong>
+          <span>Google et demanara permis per:</span>
+          <ul>
+            <li>Crear fulls de calcul al teu Drive</li>
+            <li>Llegir/eliminar els fulls creats per aquesta extensio</li>
+          </ul>
+          <span>NOMES accedeix als fulls que ella mateixa crea.</span>
+          <div class="oauth-consent-footer">
+            No obligatori. Codi obert: github.com/aaronFortuno/esfera-helper
+          </div>
+          <div class="oauth-consent-actions">
+            <button id="btn-oauth-accept" class="btn btn-primary">Continua</button>
+            <button id="btn-oauth-cancel" class="btn btn-secondary">Cancel·la</button>
+          </div>
+        </div>
+
         <!-- Nom personalitzat per al nou full -->
         <div id="new-sheet-name-section" class="hidden">
           <input type="text" id="new-sheet-name" class="sheet-name-input" 
@@ -170,7 +197,17 @@
     </section>
   </main>
 
+  <!-- Toast notification -->
+  <div id="toast" class="toast"></div>
+
   <footer>
+    <div id="footer-confirm" class="inline-confirm hidden" style="margin-bottom:6px">
+      <p>Segur que vols esborrar TOTES les dades?</p>
+      <div class="inline-confirm-actions">
+        <button id="btn-clear-confirm-yes" class="btn btn-danger">Esborra-ho tot</button>
+        <button id="btn-clear-confirm-no" class="btn btn-secondary">Cancel·la</button>
+      </div>
+    </div>
     <span>v0.4.0</span>
     <span class="footer-separator">|</span>
     <a href="#" id="btn-google-logout" class="footer-link hidden" title="Tanca la sessio de Google">Sessio Google</a>

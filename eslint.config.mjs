@@ -18,9 +18,9 @@ export default [
         Blob: 'readonly',
         FileReader: 'readonly',
         MutationObserver: 'readonly',
-        alert: 'readonly',
-        confirm: 'readonly',
+
         setTimeout: 'readonly',
+        clearTimeout: 'readonly',
         setInterval: 'readonly',
         // Chrome Extension API
         chrome: 'readonly',
