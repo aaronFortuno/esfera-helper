@@ -37,6 +37,56 @@ const SheetsAPI = (function () {
   // =========================================================================
 
   /**
+   * Obte la redirect URL per OAuth.
+   * chrome.identity.getRedirectURL pot no existir a Edge o Brave,
+   * aixi que fem fallback construint la URL manualment amb l'ID de l'extensio.
+   * @param {string} path - Path relatiu (ex: '/')
+   * @returns {string}
+   */
+  function getRedirectURL(path) {
+    if (
+      typeof chrome !== 'undefined' &&
+      chrome.identity &&
+      typeof chrome.identity.getRedirectURL === 'function'
+    ) {
+      return chrome.identity.getRedirectURL(path);
+    }
+    // Fallback: construim la URL manualment
+    const extensionId = chrome.runtime.id;
+    const cleanPath = (path || '').replace(/^\//, '');
+    return 'https://' + extensionId + '.chromiumapp.org/' + cleanPath;
+  }
+
+  /**
+   * Llança el flux OAuth via chrome.identity.launchWebAuthFlow.
+   * Si chrome.identity no esta disponible (pot passar a Brave o en contextos
+   * on l'API no s'ha carregat), obre el flux manualment en una pestanya.
+   * @param {string} authUrlStr - URL d'autenticacio completa
+   * @param {string} redirectUrl - URL de redireccio esperada
+   * @returns {Promise<string>} URL de resposta amb el token
+   */
+  async function launchAuthFlow(authUrlStr, redirectUrl) {
+    // Cas normal: chrome.identity disponible
+    if (
+      typeof chrome !== 'undefined' &&
+      chrome.identity &&
+      typeof chrome.identity.launchWebAuthFlow === 'function'
+    ) {
+      return chrome.identity.launchWebAuthFlow({
+        url: authUrlStr,
+        interactive: true,
+      });
+    }
+
+    // Fallback: Error clar si l'API no esta disponible
+    throw new Error(
+      "L'API chrome.identity no esta disponible. " +
+        "Recarrega l'extensio des de chrome://extensions (o brave://extensions) " +
+        'i torna-ho a provar.'
+    );
+  }
+
+  /**
    * Obte un token d'acces OAuth2 via chrome.identity.launchWebAuthFlow.
    * Si ja tenim un token valid en cache, el retorna directament.
    *
@@ -60,7 +110,7 @@ const SheetsAPI = (function () {
     }
 
     // Necessitem un token nou
-    const redirectUrl = chrome.identity.getRedirectURL(SHEETS_CONFIG.redirectPath);
+    const redirectUrl = getRedirectURL(SHEETS_CONFIG.redirectPath);
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', SHEETS_CONFIG.clientId);
@@ -69,10 +119,7 @@ const SheetsAPI = (function () {
     authUrl.searchParams.set('scope', SHEETS_CONFIG.scopes);
     authUrl.searchParams.set('prompt', 'consent');
 
-    const responseUrl = await chrome.identity.launchWebAuthFlow({
-      url: authUrl.toString(),
-      interactive: true,
-    });
+    const responseUrl = await launchAuthFlow(authUrl.toString(), redirectUrl);
 
     // Extraiem el token de la URL de resposta
     const hashParams = new URLSearchParams(new URL(responseUrl).hash.substring(1));

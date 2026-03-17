@@ -1,6 +1,6 @@
 /**
  * Esfer@ Helper - Content Script (Scraper)
- * 
+ *
  * S'injecta a les pagines d'avaluacio d'esfer@ i exposa funcions per:
  * 1. Detectar en quina pantalla estem (llista alumnes vs formulari alumne)
  * 2. Capturar la llista d'alumnes (pantalla de seleccio)
@@ -20,40 +20,41 @@
     // Pantalla llista d'alumnes
     studentTable: [
       'table[data-st-safe-src="vm.students_src"]',
-      'table[data-st-safe-src="vm.students"]'
+      'table[data-st-safe-src="vm.students"]',
     ].join(', '),
     studentRows: 'tr[data-ng-repeat*="alumne in vm.dummyStudents"]',
     studentActionLink: 'a[data-ng-click*="toQualificacions"]',
-    
+
     // Pantalla formulari
     subjectRows: 'tr[data-ng-repeat*="scope in vm.scope_subjects"]',
     childRows: 'div[data-ng-repeat*="area in scope.childs"]',
-    
+
     // Capcaleres per color (principal) + fallback per estructura
     subjectHeader: [
       'div[style*="rgb(191, 189, 189)"]',
       'div[style*="191, 189, 189"]',
       'div[style*="#bfbdbd"]',
       'div[style*="background-color: rgb(191"]',
-      'div.subject-header'
+      'div.subject-header',
     ].join(', '),
     itemHeader: [
       'div[style*="rgb(224, 224, 224)"]',
       'div[style*="224, 224, 224"]',
       'div[style*="#e0e0e0"]',
       'div[style*="background-color: rgb(224"]',
-      'div.item-header'
+      'div.item-header',
     ].join(', '),
-    
+
     // Selects del formulari
     formSelect: 'select[data-ng-model="el.value"]',
-    
+
     // Breadcrumb
     breadcrumb: '.breadcrumb li',
-    
+
     // Boto seguent
     nextButtons: 'button, a.btn, input[type="button"]',
-    nextArrows: '.glyphicon-chevron-right, .glyphicon-arrow-right, .fa-arrow-right, .fa-chevron-right'
+    nextArrows:
+      '.glyphicon-chevron-right, .glyphicon-arrow-right, .fa-arrow-right, .fa-chevron-right',
   };
 
   /**
@@ -153,7 +154,7 @@
 
       observer.observe(document.body, {
         childList: true,
-        subtree: true
+        subtree: true,
       });
 
       setTimeout(() => {
@@ -169,12 +170,12 @@
 
   /**
    * Captura la llista d'alumnes de la pantalla de seleccio.
-   * 
+   *
    * Cada alumne te:
    * - idRalc: codi RALC visible a la taula (ex: "14180367451") -> usat per matching
    * - idAlumne: ID intern d'esfer@ del ng-click (ex: "7936501") -> usat a les URLs
    * - nom: format "Cognoms, Nom" (ex: "Annassiri, Ibrahim")
-   * 
+   *
    * @returns {Array<{id: string, idRalc: string, idAlumne: string, nom: string}>}
    */
   async function scrapeStudentList() {
@@ -214,10 +215,10 @@
         }
 
         students.push({
-          id: idRalc,         // idRalc com a ID principal (matching amb breadcrumb)
+          id: idRalc, // idRalc com a ID principal (matching amb breadcrumb)
           idRalc: idRalc,
           idAlumne: idAlumne, // ID intern d'esfer@ (per URLs)
-          nom: nom
+          nom: nom,
         });
       }
     });
@@ -238,6 +239,7 @@
     await waitForElement(SELECTORS.subjectRows);
 
     const structure = [];
+    const seenSubjectCodes = new Set();
 
     // Cada materia es un <tr> amb ng-repeat="scope in vm.scope_subjects"
     const subjectRows = document.querySelectorAll(SELECTORS.subjectRows);
@@ -257,6 +259,10 @@
         subjectName = divs[1].textContent.trim();
       }
 
+      // Deduplicar: si ja hem vist aquesta materia, la saltem
+      if (subjectCode && seenSubjectCodes.has(subjectCode)) return;
+      if (subjectCode) seenSubjectCodes.add(subjectCode);
+
       const subjectOptions = extractSelectOptions(subjectHeader);
 
       const subject = {
@@ -264,11 +270,12 @@
         name: subjectName,
         type: 'subject',
         options: subjectOptions,
-        children: []
+        children: [],
       };
 
       // Items fills: fons gris clar
       const childRows = subjectRow.querySelectorAll(SELECTORS.childRows);
+      const seenChildCodes = new Set();
 
       childRows.forEach((childRow) => {
         const itemDiv = childRow.querySelector(SELECTORS.itemHeader);
@@ -284,13 +291,17 @@
           itemName = itemDivs[1].textContent.trim();
         }
 
+        // Deduplicar fills dins de la mateixa materia
+        if (itemCode && seenChildCodes.has(itemCode)) return;
+        if (itemCode) seenChildCodes.add(itemCode);
+
         const itemOptions = extractSelectOptions(itemDiv);
 
         subject.children.push({
           code: itemCode,
           name: itemName,
           type: 'item',
-          options: itemOptions
+          options: itemOptions,
         });
       });
 
@@ -327,13 +338,13 @@
 
   /**
    * Detecta quin alumne estem visualitzant al formulari.
-   * 
+   *
    * Breadcrumb format (ultim element):
    * "14180367451 - Annassiri, Ibrahim - NIE Y3603046H"
    *  ^idRalc       ^nom                 ^doc
-   * 
+   *
    * URL: .../EntradaDades/{sessioId}/{idIntern}/-1
-   * 
+   *
    * @returns {{id: string, idRalc: string, nom: string, urlId: string} | null}
    */
   function detectCurrentStudent() {
@@ -368,7 +379,7 @@
           const afterId = fullBreadcrumbText.substring(
             fullBreadcrumbText.indexOf(idRalc) + idRalc.length
           );
-          const nameParts = afterId.split(' - ').filter(p => p.trim());
+          const nameParts = afterId.split(' - ').filter((p) => p.trim());
           if (nameParts.length > 0) {
             nom = nameParts[0].trim();
           }
@@ -383,7 +394,7 @@
       id: id,
       idRalc: idRalc,
       nom: nom,
-      urlId: urlId
+      urlId: urlId,
     };
   }
 
@@ -430,7 +441,7 @@
   /**
    * Omple un conjunt de selects amb els valors proporcionats.
    * Utilitza un delay petit entre cada select per donar temps a Angular.
-   * 
+   *
    * @param {Array<{code: string, value: string}>} data
    * @returns {Promise<{success: number, errors: Array}>}
    */
@@ -453,7 +464,7 @@
       }
 
       // Petit delay entre selects per permetre que Angular processi
-      await new Promise(r => setTimeout(r, 20));
+      await new Promise((r) => setTimeout(r, 20));
     }
 
     // Forcem un digest cycle final per assegurar que tot s'ha aplicat
@@ -487,9 +498,7 @@
 
     // Comprovem que el valor existeix com a opcio
     const angularValue = 'string:' + value;
-    const optionExists = Array.from(select.options).some(
-      (opt) => opt.value === angularValue
-    );
+    const optionExists = Array.from(select.options).some((opt) => opt.value === angularValue);
     if (!optionExists) return false;
 
     // Metode 1: Via Angular scope (preferit)
@@ -537,7 +546,7 @@
         name: subject.name,
         type: 'subject',
         options: subject.options,
-        level: 0
+        level: 0,
       });
 
       subject.children.forEach((child) => {
@@ -546,7 +555,7 @@
           name: child.name,
           type: 'item',
           options: child.options,
-          level: 1
+          level: 1,
         });
       });
     });
@@ -570,9 +579,13 @@
       const title = (btn.getAttribute('title') || '').toLowerCase();
       const ngClick = btn.getAttribute('data-ng-click') || '';
 
-      if (text.includes('seg') || title.includes('seg') ||
-          ngClick.includes('next') || ngClick.includes('seg') ||
-          ngClick.includes('seguent')) {
+      if (
+        text.includes('seg') ||
+        title.includes('seg') ||
+        ngClick.includes('next') ||
+        ngClick.includes('seg') ||
+        ngClick.includes('seguent')
+      ) {
         btn.click();
         return true;
       }
@@ -605,30 +618,36 @@
           break;
 
         case 'scrape-students':
-          scrapeStudentList().then((students) => {
-            sendResponse({ students });
-          }).catch((err) => {
-            console.error('[Esfer@ Helper] Error scraping students:', err);
-            sendResponse({ students: [], error: err.message });
-          });
+          scrapeStudentList()
+            .then((students) => {
+              sendResponse({ students });
+            })
+            .catch((err) => {
+              console.error('[Esfer@ Helper] Error scraping students:', err);
+              sendResponse({ students: [], error: err.message });
+            });
           return true;
 
         case 'scrape-structure':
-          scrapeFormStructure().then((structure) => {
-            sendResponse({ structure });
-          }).catch((err) => {
-            console.error('[Esfer@ Helper] Error scraping structure:', err);
-            sendResponse({ structure: [], error: err.message });
-          });
+          scrapeFormStructure()
+            .then((structure) => {
+              sendResponse({ structure });
+            })
+            .catch((err) => {
+              console.error('[Esfer@ Helper] Error scraping structure:', err);
+              sendResponse({ structure: [], error: err.message });
+            });
           return true;
 
         case 'scrape-flat-items':
-          getFlatItemList().then((items) => {
-            sendResponse({ items });
-          }).catch((err) => {
-            console.error('[Esfer@ Helper] Error getting flat items:', err);
-            sendResponse({ items: [], error: err.message });
-          });
+          getFlatItemList()
+            .then((items) => {
+              sendResponse({ items });
+            })
+            .catch((err) => {
+              console.error('[Esfer@ Helper] Error getting flat items:', err);
+              sendResponse({ items: [], error: err.message });
+            });
           return true;
 
         case 'detect-current-student':
@@ -636,21 +655,25 @@
           break;
 
         case 'read-current-values':
-          readCurrentValues().then((values) => {
-            sendResponse({ values });
-          }).catch((err) => {
-            console.error('[Esfer@ Helper] Error reading values:', err);
-            sendResponse({ values: [], error: err.message });
-          });
+          readCurrentValues()
+            .then((values) => {
+              sendResponse({ values });
+            })
+            .catch((err) => {
+              console.error('[Esfer@ Helper] Error reading values:', err);
+              sendResponse({ values: [], error: err.message });
+            });
           return true;
 
         case 'fill-values':
-          fillFormValues(message.data || []).then((result) => {
-            sendResponse(result);
-          }).catch((err) => {
-            console.error('[Esfer@ Helper] Error filling values:', err);
-            sendResponse({ success: 0, errors: [{ code: '*', error: err.message }] });
-          });
+          fillFormValues(message.data || [])
+            .then((result) => {
+              sendResponse(result);
+            })
+            .catch((err) => {
+              console.error('[Esfer@ Helper] Error filling values:', err);
+              sendResponse({ success: 0, errors: [{ code: '*', error: err.message }] });
+            });
           return true;
 
         case 'click-next':
@@ -681,11 +704,13 @@
   const urlObserver = new MutationObserver(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
-      chrome.runtime.sendMessage({
-        action: 'content-script-navigation',
-        screen: detectScreen(),
-        url: window.location.href
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          action: 'content-script-navigation',
+          screen: detectScreen(),
+          url: window.location.href,
+        })
+        .catch(() => {});
     }
   });
 
@@ -693,25 +718,28 @@
   urlObserver.observe(document.querySelector('title') || document.body, {
     childList: true,
     subtree: true,
-    characterData: true
+    characterData: true,
   });
 
   // Tambe interceptem hashchange (Esfer@ usa hash routing)
   window.addEventListener('hashchange', () => {
-    chrome.runtime.sendMessage({
-      action: 'content-script-navigation',
-      screen: detectScreen(),
-      url: window.location.href
-    }).catch(() => {});
+    chrome.runtime
+      .sendMessage({
+        action: 'content-script-navigation',
+        screen: detectScreen(),
+        url: window.location.href,
+      })
+      .catch(() => {});
   });
 
   // Notifiquem al background que el content script s'ha carregat
-  chrome.runtime.sendMessage({
-    action: 'content-script-loaded',
-    screen: detectScreen(),
-    url: window.location.href
-  }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      action: 'content-script-loaded',
+      screen: detectScreen(),
+      url: window.location.href,
+    })
+    .catch(() => {});
 
   console.log('[Esfer@ Helper] Content script carregat. Pantalla:', detectScreen());
-
 })();
